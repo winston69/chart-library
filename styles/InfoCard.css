@@ -1,0 +1,73 @@
+/* InfoCard.css */
+
+.info-card {
+	display: flex;
+	flex-direction: column;
+	/* height: 100%; */
+	overflow: hidden;
+	color: #e0e0e0;
+	font-family: monospace;
+	font-size: 8px;
+}
+
+.info-title {
+	flex: 0 0 auto;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.9);
+	padding-bottom: 3px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	margin-bottom: 3px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.info-grid {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 2px 8px;
+	align-content: start;
+}
+
+.info-cell {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+	cursor: default;
+}
+
+.info-icon {
+	flex: 0 0 auto;
+	font-size: 8px;
+	opacity: 0.8;
+}
+
+.info-value {
+	flex: 1 1 auto;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar only shows when content overflows. */
+.info-grid::-webkit-scrollbar {
+	width: 4px;
+}
+
+.info-grid::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.info-grid::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 2px;
+}
+
+.info-grid::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.35);
+}

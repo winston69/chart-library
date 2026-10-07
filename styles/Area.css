@@ -1,0 +1,18 @@
+/* Area.css */
+:root {
+	--area-color: #4ade80;
+	--area-opacity: 0.3;
+}
+
+.area-group {
+	pointer-events: none;
+	overflow: visible;
+}
+
+.area-fill {
+	fill: var(--area-color);
+	fill-opacity: var(--area-opacity);
+	stroke: none;
+	vector-effect: non-scaling-stroke;
+	pointer-events: all;
+}

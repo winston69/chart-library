@@ -1,0 +1,11 @@
+.int-zoom-rect {
+	fill: rgba(74, 222, 128, 0.1);
+	stroke: rgba(74, 222, 128, 0.6);
+	stroke-width: 1;
+	stroke-dasharray: 4 2;
+}
+
+.axis-axis.axis-dragging .axis-axis-line {
+	stroke: rgba(255, 255, 255, 0.8);
+	stroke-width: 2px;
+}

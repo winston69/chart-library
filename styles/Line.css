@@ -1,0 +1,21 @@
+/* Line.css */
+:root {
+	/* Default theme variables */
+	--line-color: #4ade80;
+	--line-width: 1px;
+}
+
+.line-group {
+	pointer-events: none;
+	overflow: visible;
+}
+
+.line-path {
+	fill: none;
+	stroke: var(--line-color);
+	stroke-width: var(--line-width);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	vector-effect: non-scaling-stroke;
+	pointer-events: all;
+}

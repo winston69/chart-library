@@ -1,0 +1,18 @@
+:root {
+	--points-radius: 2;
+}
+
+.points-group {
+	--points-color: #4ade80;
+	--points-stroke: #ffffff;
+	--points-stroke-width: 0.5px;
+	pointer-events: none;
+}
+
+.points-point {
+	fill: var(--points-color);
+	stroke: var(--points-stroke);
+	stroke-width: var(--points-stroke-width);
+	vector-effect: non-scaling-stroke;
+	pointer-events: all;
+}

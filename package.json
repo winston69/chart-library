@@ -1,0 +1,23 @@
+{
+	"name": "chart-library",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "Primitive-layer chart library.",
+	"license": "MIT",
+	"main": "index.js",
+	"files": [
+		"axes/",
+		"cards/",
+		"core/",
+		"interaction/",
+		"layers/",
+		"styles/",
+		"ui/",
+		"index.js",
+		"index.css"
+	],
+	"scripts": {
+		"dev": "npx serve . -l 8000",
+		"demo": "npx serve . -l 8000"
+	}
+}

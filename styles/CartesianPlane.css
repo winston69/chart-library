@@ -1,0 +1,103 @@
+/* CartesianPlane.css - Default styling */
+:root {
+    --cp-border-color: #ffff00;
+    --cp-border-width: 1px;
+    --cp-border-dasharray: 1 2;
+    --cp-background-color: transparent;
+}
+
+.cp-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1a1a;
+    border-radius: 4px;
+    /* outline: 1px solid cyan; */
+}
+
+.cp-container:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    outline: none;
+}
+
+.cp-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    overflow: visible;
+    background: transparent;
+    /* outline: 1px solid yellow; */
+}
+
+/* .cp-container:fullscreen .cp-svg {
+    width: 100%;
+    height: 100%;
+} */
+
+.cp-band-bg {
+    fill: rgba(255, 0, 0, 0.05);
+    /* stroke: rgba(255, 0, 0, 0.2); */
+    /* stroke-dasharray: 4 2; */
+}
+
+.cp-border {
+    fill: none;
+    /* stroke: var(--cp-border-color); */
+    /* stroke-width: var(--cp-border-width); */
+    /* stroke-dasharray: var(--cp-border-dasharray); */
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+}
+
+.cp-background {
+    fill: var(--cp-background-color);
+    stroke: none;
+    pointer-events: none;
+}
+
+.cp-layers {
+    overflow: visible;
+}
+
+/* ─── Band Resize Handles ─── */
+.cp-handles {
+    pointer-events: none;
+}
+
+.cp-handles--none {
+    display: none;
+}
+
+.cp-band-handle {
+    fill: transparent;
+    cursor: ns-resize;
+    pointer-events: all;
+    transition: fill 0.15s ease;
+}
+
+.cp-handles--onHover .cp-band-handle:hover {
+    fill: rgba(255, 255, 255, 0.12);
+}
+
+.cp-handles--always .cp-band-handle {
+    fill: rgba(255, 255, 255, 0.04);
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+}
+
+.cp-handles--always .cp-band-handle:hover {
+    fill: rgba(255, 255, 255, 0.12);
+}
+
+.cp-html-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    /* overflow: hidden; */
+    z-index: 1;
+}

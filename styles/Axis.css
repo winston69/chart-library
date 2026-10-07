@@ -1,0 +1,68 @@
+/* ──────────────────────────────────────────────────────────────
+   Axis.css
+   ────────────────────────────────────────────────────────────── */
+
+:root {
+    --axis-font-size: 8px;
+    --axis-font-family: monospace;
+    --axis-label-font-size: 10px;
+    --axis-label-font-weight: bold;
+
+    --axis-color: rgba(255, 255, 255, 0.5);
+    --axis-label-color: rgba(255, 255, 255, 0.8);
+    --tick-label-color: rgba(255, 255, 255, 0.7);
+    --grid-color: rgba(255, 255, 255, 0.15);
+
+    --axis-line-color: rgba(255, 255, 255, 0.4);
+    --axis-line-width: 1px;
+    --tick-line-color: rgba(255, 255, 255, 0.4);
+    --tick-line-width: 1px;
+    --grid-line-width: 0.5px;
+    --grid-line-dash: 2 2;
+}
+
+.axis-axis {
+    pointer-events: none;
+    font-family: var(--axis-font-family);
+}
+
+.axis-axis-line {
+    stroke: var(--axis-line-color);
+    stroke-width: var(--axis-line-width);
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+.axis-tick-line,
+.axis-minor-tick,
+.axis-micro-tick {
+    stroke: var(--tick-line-color);
+    stroke-width: var(--tick-line-width);
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+.axis-tick-label {
+    font-family: var(--axis-font-family);
+    font-size: var(--axis-font-size);
+    fill: var(--tick-label-color);
+    user-select: none;
+}
+
+.axis-axis-label {
+    font-family: var(--axis-font-family);
+    font-size: var(--axis-label-font-size);
+    font-weight: var(--axis-label-font-weight);
+    fill: var(--axis-label-color);
+    user-select: none;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+.axis-grid-line {
+    fill: none;
+    stroke: var(--grid-color);
+    stroke-width: var(--grid-line-width);
+    stroke-dasharray: var(--grid-line-dash);
+    vector-effect: non-scaling-stroke;
+}

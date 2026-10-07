@@ -1,0 +1,37 @@
+/* ToolBar.css - HTML toolbar */
+
+.tb-container {
+	position: absolute;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 4;
+
+	display: flex;
+	padding: 4px;
+	gap: 4px;
+
+	background: rgba(20, 20, 20, 0.75);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 3px;
+}
+
+.tb-group {
+	display: flex;
+	gap: 4px;
+	pointer-events: auto;
+}
+
+/* ─── ORIENTATION ─── */
+.tb-horizontal .tb-group {
+	flex-direction: row;
+	align-items: center;
+}
+
+.tb-vertical {
+	flex-direction: column;
+}
+
+.tb-vertical .tb-group {
+	flex-direction: column;
+	align-items: stretch;
+}

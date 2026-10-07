@@ -1,0 +1,64 @@
+/* OHLCCard.css */
+
+.ohlc-card {
+	display: flex;
+	flex-direction: column;
+	/* height: 100%; */
+	overflow: hidden;
+	color: #e0e0e0;
+	font-family: monospace;
+	font-size: 8px;
+}
+
+.ohlc-title {
+	flex: 0 0 auto;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.9);
+	padding-bottom: 3px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	margin-bottom: 3px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ohlc-rows {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.ohlc-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.ohlc-label {
+	flex: 0 0 auto;
+	opacity: 0.6;
+	width: 8px;
+}
+
+.ohlc-value {
+	flex: 1 1 auto;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Color the whole card's values based on the candle direction. */
+.ohlc-card.ohlc-up .ohlc-value {
+	color: #4ade80;
+}
+
+.ohlc-card.ohlc-down .ohlc-value {
+	color: #ff6b6b;
+}
+
+/* When hovering, show a subtle emphasis border so the user knows
+   the values reflect a hovered candle, not the latest. */
+.ohlc-card.hovering {
+	border-color: rgba(255, 255, 255, 0.2);
+}

@@ -1,0 +1,24 @@
+/* GhostLine.css */
+:root {
+	--ghost-color: rgba(255, 255, 255, 0.35);
+	--ghost-width: 1px;
+	--ghost-dash: 3 3;
+	--ghost-opacity: 1;
+}
+
+.ghost-group {
+	pointer-events: none;
+	overflow: visible;
+}
+
+.ghost-path {
+	fill: none;
+	stroke: var(--ghost-color);
+	stroke-width: var(--ghost-width);
+	stroke-dasharray: var(--ghost-dash);
+	stroke-linejoin: round;
+	stroke-linecap: round;
+	stroke-opacity: var(--ghost-opacity);
+	vector-effect: non-scaling-stroke;
+	pointer-events: none;
+}

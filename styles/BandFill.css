@@ -1,0 +1,14 @@
+:root {
+	--band-fill-color: rgba(148, 163, 184, 0.08);
+}
+
+.band-fill-group {
+	pointer-events: none;
+}
+
+.band-fill-path {
+	fill: var(--band-fill-color);
+	stroke: none;
+	vector-effect: non-scaling-stroke;
+	pointer-events: none;
+}

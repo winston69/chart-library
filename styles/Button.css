@@ -1,0 +1,141 @@
+/* Button.css - HTML button */
+:root {
+	--btn-bg: rgba(255, 255, 255, 0.05);
+	--btn-border: rgba(255, 255, 255, 0.08);
+	--btn-text: rgba(255, 255, 255, 0.8);
+	--btn-icon: rgba(255, 255, 255, 0.9);
+	--btn-hover-bg: rgba(255, 255, 255, 0.08);
+	--btn-hover-border: rgba(255, 255, 255, 0.15);
+	--btn-hover-text: #ffffff;
+	--btn-hover-icon: #ffffff;
+}
+
+.btn {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	box-sizing: border-box;
+
+	padding: 0 6px;
+	background: var(--btn-bg);
+	border: 1px solid var(--btn-border);
+	border-radius: 3px;
+
+	color: var(--btn-text);
+	font-family: monospace;
+	font-size: 10px;
+	line-height: 1;
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn[data-disabled="true"] {
+	cursor: default;
+	opacity: 0.4;
+}
+
+.btn[data-hover="true"] {
+	background: var(--btn-hover-bg);
+	border-color: var(--btn-hover-border);
+	color: var(--btn-hover-text);
+}
+
+.btn[data-hover="true"] .btn-icon {
+	color: var(--btn-hover-icon);
+}
+
+.btn-icon {
+	display: inline-block;
+	color: var(--btn-icon);
+	font-size: 12px;
+	line-height: 1;
+}
+
+.btn-label {
+	display: inline-block;
+}
+
+.btn-shortcut {
+	display: inline-block;
+	opacity: 0.4;
+	font-size: 8px;
+	margin-left: 2px;
+}
+
+/* ─── SIZES ─── */
+.btn-sm {
+	height: 20px;
+	min-width: 22px;
+	padding: 0 5px;
+	font-size: 10px;
+}
+
+.btn-md {
+	height: 26px;
+	min-width: 30px;
+	padding: 0 8px;
+	font-size: 12px;
+}
+
+.btn-lg {
+	height: 32px;
+	min-width: 40px;
+	padding: 0 12px;
+	font-size: 14px;
+}
+
+.btn-icon-only {
+	padding: 0;
+	min-width: auto;
+}
+
+/* ─── VARIANTS ─── */
+.btn-primary {
+	--btn-bg: rgba(74, 222, 128, 0.15);
+	--btn-border: rgba(74, 222, 128, 0.3);
+	--btn-text: #4ade80;
+	--btn-hover-bg: rgba(74, 222, 128, 0.25);
+	--btn-hover-border: rgba(74, 222, 128, 0.4);
+}
+
+.btn-secondary {
+	--btn-bg: rgba(255, 255, 255, 0.05);
+	--btn-border: rgba(255, 255, 255, 0.08);
+}
+
+.btn-success {
+	--btn-bg: rgba(52, 211, 153, 0.15);
+	--btn-border: rgba(52, 211, 153, 0.3);
+	--btn-text: #34d399;
+}
+
+.btn-danger {
+	--btn-bg: rgba(248, 113, 113, 0.15);
+	--btn-border: rgba(248, 113, 113, 0.3);
+	--btn-text: #f87171;
+}
+
+.btn-warning {
+	--btn-bg: rgba(251, 191, 36, 0.15);
+	--btn-border: rgba(251, 191, 36, 0.3);
+	--btn-text: #fbbf24;
+}
+
+.btn-ghost {
+	--btn-bg: transparent;
+	--btn-border: transparent;
+	--btn-text: rgba(255, 255, 255, 0.5);
+	--btn-hover-bg: rgba(255, 255, 255, 0.03);
+	--btn-hover-border: rgba(255, 255, 255, 0.06);
+	--btn-hover-text: rgba(255, 255, 255, 0.8);
+}
+
+.btn-selected {
+	--btn-bg: rgba(255, 255, 255, 0.12);
+	--btn-border: rgba(255, 255, 255, 0.25);
+	--btn-text: #ffffff;
+}

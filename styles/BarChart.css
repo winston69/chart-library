@@ -1,0 +1,28 @@
+:root {
+	--bar-up-color: #4ade80;
+	--bar-down-color: #ff6b6b;
+	--bar-up-opacity: 0.75;
+	--bar-down-opacity: 0.75;
+}
+
+.bar-group {
+	pointer-events: none;
+}
+
+.bar-up-bars,
+.bar-down-bars {
+	shape-rendering: crispEdges;
+	vector-effect: non-scaling-stroke;
+	stroke: none;
+	pointer-events: all;
+}
+
+.bar-up-bars {
+	fill: var(--bar-up-color);
+	fill-opacity: var(--bar-up-opacity);
+}
+
+.bar-down-bars {
+	fill: var(--bar-down-color);
+	fill-opacity: var(--bar-down-opacity);
+}

@@ -1,0 +1,110 @@
+:root {
+    --ref-pulse-radius: 3;
+}
+
+.ref-container {
+    --ref-color: #ff6b6b;
+    --ref-line-color: var(--ref-color);
+    --ref-line-width: 1px;
+    --ref-line-dasharray: 2 4;
+    --ref-pulse-color: var(--ref-color);
+    --ref-ring-color: var(--ref-color);
+    --ref-ring-width: 1.5px;
+    --ref-pulse-duration: 1.5s;
+    --ref-pulse-animation: ref-pulse-seismic;
+    --ref-ring-animation: ref-ring-seismic;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.ref-line {
+    fill: none;
+    stroke: var(--ref-line-color);
+    stroke-width: var(--ref-line-width);
+    stroke-dasharray: var(--ref-line-dasharray);
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+}
+
+.ref-label {
+    fill: rgba(255, 255, 255, 0.35);
+    font-size: 7px;
+    font-family: monospace;
+    dominant-baseline: baseline;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ref-pulse {
+    fill: var(--ref-pulse-color);
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.ref-ring {
+    fill: none;
+    stroke: var(--ref-ring-color);
+    stroke-width: var(--ref-ring-width);
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+@keyframes ref-pulse-seismic {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    40% {
+        transform: scale(1.6);
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: scale(2.5);
+        opacity: 0.1;
+    }
+}
+
+@keyframes ref-ring-seismic {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+.ref-pulse-css {
+    animation-name: var(--ref-pulse-animation, ref-pulse-seismic);
+    animation-duration: var(--ref-pulse-duration, 1.5s);
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+}
+
+.ref-ring-css {
+    animation-name: var(--ref-ring-animation, ref-ring-seismic);
+    animation-duration: var(--ref-pulse-duration, 1.5s);
+    animation-timing-function: ease-out;
+    animation-iteration-count: infinite;
+}
+
+.ref-ring-css:nth-child(2) {
+    animation-delay: calc(var(--ref-pulse-duration, 1.5s) * 0.33);
+}
+
+.ref-ring-css:nth-child(3) {
+    animation-delay: calc(var(--ref-pulse-duration, 1.5s) * 0.66);
+}
+
+.ref-ring-css:nth-child(4) {
+    animation-delay: calc(var(--ref-pulse-duration, 1.5s) * 0.99);
+}

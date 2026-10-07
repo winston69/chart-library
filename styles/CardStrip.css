@@ -1,0 +1,63 @@
+/* CardStrip.css */
+:root {
+	/* One knob controls strip inset, row gap, column gap, and card padding. */
+	--cs-padding: 4px;
+	--cs-row-height: 48px;
+	--cs-card-width: 96px;
+	/* Subtle lift (default) */
+	--cs-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+	/* Medium lift */
+	--cs-card-shadow1: 0 2px 6px rgba(0, 0, 0, 0.5);
+	/* Strong lift */
+	--cs-card-shadow2: 0 4px 12px rgba(0, 0, 0, 0.6);
+	/* Inset glow (border highlight instead of drop shadow) */
+	--cs-card-shadow3: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.4);
+	/* No shadow */
+	--cs-card-shadow4: none;
+}
+
+.cs-container {
+	position: absolute;
+	box-sizing: border-box;
+	overflow: hidden;
+	pointer-events: none;
+
+	/* Row flow: left-to-right, wrapping bottom-up. */
+	display: flex;
+	flex-wrap: wrap-reverse;
+	align-content: flex-start;
+	align-items: stretch;
+	/* was flex-end; ensures fixed-height cards stay at their row */
+	justify-content: flex-start;
+
+	row-gap: var(--cs-padding);
+	column-gap: var(--cs-padding);
+}
+
+.cs-card {
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	width: var(--cs-card-width);
+	height: var(--cs-row-height);
+	max-height: var(--cs-row-height);
+	padding: var(--cs-padding);
+
+	background: rgba(20, 20, 20, 0.85);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 4px;
+
+	/* Subtle lift */
+	box-shadow: var(--cs-card-shadow, 0 1px 3px rgba(0, 0, 0, 0.4));
+	transition: box-shadow 0.15s ease, opacity 0.15s ease;
+
+	color: #e0e0e0;
+	font-family: monospace;
+	font-size: 8px;
+	overflow: hidden;
+	pointer-events: auto;
+	transition: opacity 0.15s ease;
+}
+
+.cs-card:hover {
+	box-shadow: var(--cs-card-shadow-hover, 0 2px 6px rgba(0, 0, 0, 0.5));
+}

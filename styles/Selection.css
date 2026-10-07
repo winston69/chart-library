@@ -1,0 +1,20 @@
+/* Selection.css - Chart state styling derived from plane selection */
+
+.sel-chart-normal {
+	opacity: 0.8;
+	transition: opacity 0.15s ease;
+}
+
+.sel-chart-selected {
+	opacity: 1;
+	transition: opacity 0.15s ease;
+}
+
+.sel-chart-unselected {
+	opacity: 0.15;
+	transition: opacity 0.15s ease;
+}
+
+.sel-chart-unselected:hover {
+	opacity: 0.4;
+}

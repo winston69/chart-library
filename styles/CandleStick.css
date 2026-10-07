@@ -1,0 +1,39 @@
+:root {
+	--candle-up-color: #4ade80;
+	--candle-down-color: #ff6b6b;
+	--candle-wick-color: rgba(255, 255, 255, 0.5);
+	--candle-wick-width: 1px;
+}
+
+.candle-group {
+	pointer-events: none;
+}
+
+.candle-up-bodies {
+	fill: var(--candle-up-color);
+	stroke: var(--candle-up-color);
+	stroke-width: 1px;
+	stroke-linejoin: miter;
+	shape-rendering: crispEdges;
+	vector-effect: non-scaling-stroke;
+	pointer-events: fill;
+}
+
+.candle-down-bodies {
+	fill: var(--candle-down-color);
+	stroke: var(--candle-down-color);
+	stroke-width: 1px;
+	stroke-linejoin: miter;
+	shape-rendering: crispEdges;
+	vector-effect: non-scaling-stroke;
+	pointer-events: fill;
+}
+
+.candle-wicks {
+	fill: none;
+	stroke: var(--candle-wick-color);
+	stroke-width: var(--candle-wick-width);
+	stroke-linecap: butt;
+	vector-effect: non-scaling-stroke;
+	pointer-events: stroke;
+}

@@ -1,0 +1,111 @@
+/* ──────────────────────────────────────────────────────────────
+   chart-demo.css
+   ──────────────────────────────────────────────────────────────
+   Page-level layout plus per-instance overrides of each layer's
+   CSS variables. Every default lives in the layer's own CSS file.
+   This file only customizes the demo's particular palette.
+   ──────────────────────────────────────────────────────────────
+*/
+:root {
+	--panel-bg: #2d2d2d;
+	--accent-red: #ff6347;
+	--accent-green: #4ade80;
+}
+
+*,
+*::before,
+*::after {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	box-sizing: border-box;
+}
+
+html {
+	height: 100%;
+}
+
+body {
+	height: 100%;
+	overflow: hidden;
+	font-family: monospace;
+	font-size: 8px;
+	color: #e0e0e0;
+	background: #1a1a1a;
+}
+
+/* ─── SCROLLBARS ─── */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--panel-bg);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--accent-red);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--accent-green);
+}
+
+::-webkit-scrollbar-corner {
+	background-color: var(--panel-bg);
+}
+
+/* ─── PRICE BAND OVERRIDES ─── */
+
+/* WAP is amber, not the layer's default green. */
+#wap-chart-group {
+	--line-color: #ffd43b;
+}
+
+#wap-area-group {
+	--area-color: #ffd43b;
+	--area-opacity: 0.12;
+}
+
+/* Ghosts are tinted to match their source layers. */
+#price-ghost-group {
+	--ghost-color: rgba(74, 222, 128, 0.35);
+}
+
+#wap-ghost-group {
+	--ghost-color: rgba(255, 212, 59, 0.35);
+}
+
+/* Bollinger envelope — purple family, three opacities. */
+#bb-mean-group {
+	--line-color: rgba(132, 94, 247, 0.7);
+	--line-width: 1px;
+}
+
+#bb-upper-group,
+#bb-lower-group {
+	--line-color: rgba(132, 94, 247, 0.45);
+}
+
+#bb-fill-group {
+	--band-fill-color: rgba(132, 94, 247, 0.12);
+}
+
+/* ─── MACD BAND OVERRIDES ─── */
+
+#macd-line-group {
+	--line-color: #22d3ee;
+}
+
+#macd-signal-group {
+	--line-color: #f59e0b;
+}
+
+#macd-histogram-group {
+	--bar-up-color: #22d3ee;
+	--bar-down-color: #f43f5e;
+	--bar-up-opacity: 0.6;
+	--bar-down-opacity: 0.6;
+}
