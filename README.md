@@ -14,7 +14,7 @@ Early. API is not stable. No npm release yet.
 
 ## Quick start
 
-    git clone https://github.com/<user>/chart-library.git
+    git clone https://github.com/winston69/chart-library.git
     cd chart-library
     npm run dev
     # open http://localhost:8000
