@@ -35,20 +35,19 @@ Early. API is not stable. No npm release yet.
 
 ## Layers
 
-| Layer                | Contributes | Notes                          |
-|                      | to domain   |                                |
-|----------------------|-------------|--------------------------------|
-| Line                 | yes         |                                |
-| Area                 | no          | fill under a Line              |
-| Points               | no          | circles at each sample         |
-| GhostLine            | no          | dashed unclipped polyline      |
-| BandFill             | no          | fill between two layers        |
-| BarChart             | yes         | up/down coloring               |
-| CandleStick          | yes         | wicks and bodies               |
-| ReferenceLine        | no          | horizontal/vertical annotation |
-| Axis / XAxis / YAxis | margin      |                                |
-| CrosshairLayer       | no          |                                |
-| InteractionLayer     | no          | pan, zoom, axis drag           |
+| Layer                | Contributes to domain | Notes                          |
+|----------------------|-----------------------|--------------------------------|
+| Line                 | yes                   |                                |
+| Area                 | no                    | fill under a Line              |
+| Points               | no                    | circles at each sample         |
+| GhostLine            | no                    | dashed unclipped polyline      |
+| BandFill             | no                    | fill between two layers        |
+| BarChart             | yes                   | up/down coloring               |
+| CandleStick          | yes                   | wicks and bodies               |
+| ReferenceLine        | no                    | horizontal/vertical annotation |
+| Axis / XAxis / YAxis | margin                |                                |
+| CrosshairLayer       | no                    |                                |
+| InteractionLayer     | no                    | pan, zoom, axis drag           |
 
 ## CSS conventions
 
@@ -72,7 +71,7 @@ worker that simulates a market data feed. No build step.
 - Indicator registry: type name → factory.
 - Optional Chart DSL for declarative configuration.
 
-See `SESSION.md` for current state and decisions.
+See [SESSION.md](./SESSION.md) for architectural decisions and open work.
 
 ## License
 

@@ -161,12 +161,13 @@ are the higher-value change.
 - Every new layer needs: a `.js` file, a `.css` file, a `<link>`
   in `index.html`, and a `CSS.<layer>` block in `CSS.js`.
 
-## Recovery checklist
+## How to resume
 
-If resuming after a break:
+If you're picking up this project after a break:
 
-1. Share the repo tree URL.
-2. Share this file.
-3. Say which item from "Open work" to pick up next.
+1. Read the "Open work" section above.
+2. Skim the recent git log for context.
+3. Start with the highest-priority open item.
 
-That's enough context to be productive in one turn.
+The repo is the source of truth for what the code *is*. This
+file records the decisions behind it.
