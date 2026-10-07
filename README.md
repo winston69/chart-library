@@ -1,3 +1,4 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/winston69/chart-library/blob/main/LICENSE)
 # chart-library
 
 A primitive-layer chart library. Layers render one visual thing each.
@@ -34,8 +35,8 @@ Early. API is not stable. No npm release yet.
 
 ## Layers
 
-                       | Contributes |
-| Layer                | to domain   | Notes                          |
+| Layer                | Contributes | Notes                          |
+|                      | to domain   |                                |
 |----------------------|-------------|--------------------------------|
 | Line                 | yes         |                                |
 | Area                 | no          | fill under a Line              |
