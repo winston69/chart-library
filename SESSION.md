@@ -55,18 +55,17 @@ UI layers: `Button`, `ToolBar`, `ToolTip`.
 
 ## Recent cleanups
 
-- Split `LineChart` into `Line`, `Area`, `Points`.
-- Extracted `GhostLine` and `BandFill` as standalone layers.
-- Removed `Pointer.js`; `SVG.getPoint` and `SVG.pointInBounds` now
-  live on the `SVG` object.
-- Removed `Axis.js` compat shim; `AxisLayer` renamed to `Axis`.
-- Removed `CartesianPlane._getSvgPoint`; consumers call
-  `SVG.getPoint` directly.
-- `CSS.js` trimmed to class maps + `get`/`getNumber`. Every color
-  helper, theme helper, and observer was unused and removed.
-- `Utils.js` trimmed to functions with active callers:
-  `clamp`, `uniqueId`, `findNearestByX`, `findExtremes`,
-  `downsample`, `limitPoints`. Dead helpers removed.
+- Split LineChart into Line, Area, Points.
+- Extracted GhostLine and BandFill as standalone layers.
+- Removed Pointer.js; SVG.getPoint and SVG.pointInBounds on SVG.
+- Removed Axis.js compat shim; AxisLayer renamed to Axis.
+- Removed CartesianPlane._getSvgPoint; consumers call SVG.getPoint.
+- CSS.js trimmed to class maps + get/getNumber.
+- Utils.js trimmed to functions with active callers.
+- Added core/Icons.js: SVG icon registry with currentColor theming.
+- Migrated toolbar icons from emoji to SVG.
+- Flattened toolbar buttons: square, no borders, no gaps.
+- Fixed Button.setIcon to rebuild icon node on change.
 
 ## Band configuration (current)
 

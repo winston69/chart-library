@@ -12,6 +12,7 @@ export { Events, EventEmitter } from './core/Events.js';
 export { Utils } from './core/Utils.js';
 export { SVG } from './core/SVG.js';
 export { CSS } from './core/CSS.js';
+export { Icons } from './core/Icons.js';
 
 // Axes
 export { Axis } from './axes/Axis.js';

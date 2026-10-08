@@ -21,6 +21,7 @@
 // ──────────────────────────────────────────────────────────────
 
 import { CSS } from '../core/CSS.js';
+import { Icons } from '../core/Icons.js';
 
 const css = CSS.button;
 
@@ -42,6 +43,7 @@ export class Button {
 		this.selected = options.selected || false;
 		this.disabled = options.disabled || false;
 		this.active = options.active || false;
+		this._lastIconSpec = null;
 
 		// ─── TOOLTIP ───
 		// Plain string, HTMLElement, or function. Set as the `tooltip`
@@ -111,11 +113,12 @@ export class Button {
 
 		// ─── ICON ───
 		if (this.icon) {
-			const iconEl = document.createElement('span');
-			iconEl.className = css.iconEmoji;
-			iconEl.textContent = this.icon;
-			root.appendChild(iconEl);
-			el.iconEl = iconEl;
+			const iconEl = Icons.create(this.icon);
+			if (iconEl) {
+				root.appendChild(iconEl);
+				el.iconEl = iconEl;
+				this._lastIconSpec = this.icon;
+			}
 		}
 
 		// ─── LABEL ───
@@ -218,12 +221,22 @@ export class Button {
 		root.dataset.selected = this.selected ? 'true' : 'false';
 		root.dataset.disabled = this.disabled ? 'true' : 'false';
 
+		// Label
 		if (el.labelEl && el.labelEl.textContent !== this.label) {
 			el.labelEl.textContent = this.label;
 		}
-		if (el.iconEl && typeof this.icon === 'string' && el.iconEl.textContent !== this.icon) {
-			el.iconEl.textContent = this.icon;
+
+		// Icon — rebuild when the spec changes.
+		if (el.iconEl && this.icon !== this._lastIconSpec) {
+			const fresh = Icons.create(this.icon);
+			if (fresh) {
+				el.iconEl.replaceWith(fresh);
+				el.iconEl = fresh;
+				this._lastIconSpec = this.icon;
+			}
 		}
+
+		// Shortcut
 		if (el.shortcutEl && el.shortcutEl.textContent !== this.shortcut) {
 			el.shortcutEl.textContent = this.shortcut || '';
 		}

@@ -2,7 +2,7 @@
 	"name": "chart-library",
 	"version": "0.1.0",
 	"type": "module",
-	"description": "Primitive-layer chart library.",
+	"description": "Primitive-layer chart library. Compose indicators from single-purpose layers.",
 	"license": "MIT",
 	"main": "index.js",
 	"files": [

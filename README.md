@@ -1,4 +1,5 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/winston69/chart-library/blob/main/LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/winston69/chart-library)](https://github.com/winston69/chart-library/commits/main)
 # chart-library
 
 A primitive-layer chart library. Layers render one visual thing each.
@@ -11,7 +12,8 @@ Early. API is not stable. No npm release yet.
 
 ## What it looks like
 
-[one screenshot or a link to the demo]
+![Demo](https://winston69.github.io/chart-library/chart-demo.png)
+[Live demo](https://winston69.github.io/chart-library/)
 
 ## Quick start
 
@@ -56,7 +58,7 @@ Early. API is not stable. No npm release yet.
 - Numeric CSS variables that feed JS are read once in the
   constructor via `CSS.getNumber('--variable')`.
 - Every layer's CSS file declares its defaults at `:root`.
-- Class names live in `styles/CSS.js`.
+- Class names live in `core/CSS.js`.
 
 ## Demo
 

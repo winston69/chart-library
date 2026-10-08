@@ -13,6 +13,7 @@
 // ──────────────────────────────────────────────────────────────
 
 import { Events } from './core/Events.js';
+// import { Icons } from './core/Icons.js';
 import { Button } from './ui/Button.js';
 
 import { CartesianPlane } from './core/CartesianPlane.js';
@@ -496,7 +497,7 @@ feed.onmessage = (evt) => {
 		}
 		case 'state': {
 			feedRunning = msg.running;
-			autoButton.setIcon(msg.running ? '⏹️' : '▶️');
+			autoButton.setIcon(msg.running ? 'stop' : 'play');
 			autoButton.setTooltip(msg.running ? 'Stop auto-append' : 'Auto-append');
 			break;
 		}
@@ -528,24 +529,6 @@ const toolbar = new ToolBar({
 	position: 'top',
 	positionIntent: 'outside'
 });
-
-// ─── Toggle factories ───
-function layerToggleButton({ id, icon, tooltip, variant = 'secondary', layer }) {
-	return new Button({
-		id,
-		icon,
-		size: 'sm',
-		variant,
-		tooltip,
-		selected: !!plane.getLayer(layer.id),
-		onClick: () => {
-			if (plane.getLayer(layer.id)) plane.removeLayer(layer);
-			else plane.addLayer(layer, layer._addOptions);
-			// Re-evaluate the visual state from the plane.
-			const btn = this;
-		}
-	});
-}
 
 function cardToggleButton({ id, icon, tooltip, card }) {
 	const btn = new Button({
@@ -589,7 +572,7 @@ function makeLayerToggle({ id, icon, tooltip, variant = 'secondary', layer }) {
 // ─── Interaction mode ───
 const panButton = new Button({
 	id: 'mode-pan',
-	icon: '🖐️',
+	icon: 'pan',
 	size: 'sm',
 	variant: 'ghost',
 	tooltip: 'Pan mode (drag to move)',
@@ -603,7 +586,7 @@ const panButton = new Button({
 
 const zoomButton = new Button({
 	id: 'mode-zoom',
-	icon: '🔍',
+	icon: 'zoom',
 	size: 'sm',
 	variant: 'ghost',
 	tooltip: 'Zoom mode (drag a rectangle)',
@@ -617,7 +600,7 @@ const zoomButton = new Button({
 
 const resetButton = new Button({
 	id: 'mode-reset',
-	icon: '🔄',
+	icon: 'reset',
 	size: 'sm',
 	variant: 'ghost',
 	tooltip: 'Reset zoom (or double-click the chart)',
@@ -627,36 +610,35 @@ const resetButton = new Button({
 // ─── Layer toggles ───
 const timeAxisButton = makeLayerToggle({
 	id: 'toggle-time-axis',
-	icon: '⏱️',
+	icon: 'axisTime',
 	tooltip: 'Show/Hide Time Axis',
-	variant: 'primary',
 	layer: xAxis
 });
 
 const priceAxisButton = makeLayerToggle({
 	id: 'toggle-price-axis',
-	icon: '📊',
+	icon: 'axisValue',
 	tooltip: 'Show/Hide Price Y-Axis',
 	layer: priceYAxis
 });
 
 const volumeAxisButton = makeLayerToggle({
 	id: 'toggle-volume-axis',
-	icon: '📊',
+	icon: 'axisValue',
 	tooltip: 'Show/Hide Volume Y-Axis',
 	layer: volumeYAxis
 });
 
 const macdAxisButton = makeLayerToggle({
 	id: 'toggle-macd-axis',
-	icon: '📊',
+	icon: 'axisValue',
 	tooltip: 'Show/Hide MACD Y-Axis',
 	layer: macdYAxis
 });
 
 const crosshairButton = makeLayerToggle({
 	id: 'toggle-crosshair',
-	icon: '✛',
+	icon: 'crosshair',
 	tooltip: 'Show/Hide Crosshair',
 	variant: 'ghost',
 	layer: crosshair
@@ -665,21 +647,21 @@ const crosshairButton = makeLayerToggle({
 // ─── Card toggles ───
 const legendButton = cardToggleButton({
 	id: 'toggle-legend',
-	icon: '🎯',
+	icon: 'legend',
 	tooltip: 'Show/Hide Legend',
 	card: legendCard
 });
 
 const ohlcButton = cardToggleButton({
 	id: 'toggle-ohlc',
-	icon: '💹',
+	icon: 'ohlc',
 	tooltip: 'Show/Hide OHLC',
 	card: ohlcCard
 });
 
 const infoButton = cardToggleButton({
 	id: 'toggle-info',
-	icon: '📋',
+	icon: 'info',
 	tooltip: 'Show/Hide Metrics',
 	card: infoCard
 });
@@ -687,7 +669,7 @@ const infoButton = cardToggleButton({
 // ─── Fullscreen ───
 const fullscreenButton = new Button({
 	id: 'toggle-fullscreen',
-	icon: '⛶',
+	icon: 'fullscreen',
 	size: 'sm',
 	variant: 'ghost',
 	tooltip: 'Enter Fullscreen',
@@ -695,14 +677,14 @@ const fullscreenButton = new Button({
 });
 
 plane.events.on(Events.FULLSCREEN_CHANGED, (data) => {
-	fullscreenButton.setIcon(data.fullscreen ? '⛗' : '⛶');
+	fullscreenButton.setIcon(data.fullscreen ? 'fullscreenExit' : 'fullscreen');
 	fullscreenButton.setTooltip(data.fullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen');
 });
 
 // ─── Demo controls ───
 const addPointButton = new Button({
 	id: 'ctrl-add-point',
-	icon: '➕',
+	icon: 'add',
 	size: 'sm',
 	variant: 'primary',
 	tooltip: '+ Add Point',
@@ -711,7 +693,7 @@ const addPointButton = new Button({
 
 const addBatchButton = new Button({
 	id: 'ctrl-add-batch',
-	icon: '📈',
+	icon: 'batch',
 	size: 'sm',
 	variant: 'primary',
 	tooltip: '+ Add 5',
@@ -722,7 +704,7 @@ const addBatchButton = new Button({
 
 const resetChartsButton = new Button({
 	id: 'ctrl-reset',
-	icon: '↺',
+	icon: 'reset',
 	size: 'sm',
 	variant: 'secondary',
 	tooltip: 'Reset charts',
@@ -731,7 +713,7 @@ const resetChartsButton = new Button({
 
 const autoButton = new Button({
 	id: 'ctrl-auto',
-	icon: '▶️',
+	icon: 'play',
 	size: 'sm',
 	variant: 'danger',
 	tooltip: 'Stop auto-append',
@@ -740,7 +722,7 @@ const autoButton = new Button({
 
 const strategyButton = new Button({
 	id: 'ctrl-strategy',
-	icon: '📐',
+	icon: 'strategy',
 	size: 'sm',
 	variant: 'success',
 	tooltip: 'Cycle domain strategy',
@@ -798,12 +780,12 @@ function toggleAuto() {
 	if (feedRunning) {
 		feed.postMessage({ type: 'stop' });
 		feedRunning = false;
-		autoButton.setIcon('▶️');
+		autoButton.setIcon('play');
 		autoButton.setTooltip('Auto-append');
 	} else {
 		feed.postMessage({ type: 'start' });
 		feedRunning = true;
-		autoButton.setIcon('⏹️');
+		autoButton.setIcon('stop');
 		autoButton.setTooltip('Stop auto-append');
 	}
 }
