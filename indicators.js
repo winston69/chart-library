@@ -1,15 +1,22 @@
 // ──────────────────────────────────────────────────────────────
 // demo/indicators.js
 //
-// Stateful indicator computations. Each computer holds the
+// Stateful indicator computers. Each computer holds the
 // incremental state it needs (EMA values, RSI averages, rolling
 // windows) and exposes `compute(price)` returning the derived
 // fields for that sample.
 //
-// The feed calls `createIndicatorSet().compute(row)` once per
-// tick. The set runs every registered computer in order and
-// merges the results into a single object, which the feed
-// spreads onto the outgoing row.
+// `createIndicatorSet(names)` returns an object with:
+//   - compute(row)   — runs every registered computer, merges
+//                      outputs into one object
+//   - reset()        — resets every registered computer
+//
+// Indicator names are keys of the COMPUTERS map below. To add a
+// new indicator:
+//   1. Write a `createXxxComputer` function.
+//   2. Add it to COMPUTERS.
+//   3. Add the derived fields to the outgoing row in the feed.
+//   4. Add a rendering factory under `indicators/`.
 // ──────────────────────────────────────────────────────────────
 
 // ─── MACD ───
@@ -149,25 +156,46 @@ export function createBollingerComputer() {
 	};
 }
 
-// ─── Aggregator ───
+// ─── Registry ───
 
 /**
- * Creates a set of indicator computers. Call `compute(row)` on the
- * returned object once per tick; it runs every registered computer
- * and merges their outputs into one object.
+ * Lookup table of indicator computers. Keys are the indicator
+ * names; values are factory functions that return a fresh
+ * computer instance.
  *
- * To add an indicator:
- *   1. Write a `createXxxComputer` above.
- *   2. Push it into the array in this function.
- *   3. Add the derived field(s) to the row shape in `chart-demo-feed.js`.
- *   4. Add a corresponding factory under `indicators/` to render it.
+ * Order matters: `createIndicatorSet` runs them in the order
+ * their names appear in the input array, so any indicator that
+ * depends on another's output should be listed after it. None of
+ * the current indicators have dependencies.
  */
-export function createIndicatorSet() {
-	const computers = [
-		createMACDComputer(),
-		createRSIComputer(),
-		createBollingerComputer()
-	];
+export const COMPUTERS = {
+	macd: createMACDComputer,
+	rsi: createRSIComputer,
+	bollinger: createBollingerComputer
+};
+
+/**
+ * Creates an indicator set that runs the named computers in
+ * sequence and merges their outputs.
+ *
+ * @param {string[]} names — indicator names, e.g. ['macd', 'rsi']
+ * @returns {{ compute(row): object, reset(): void }}
+ */
+export function createIndicatorSet(names) {
+	if (!Array.isArray(names) || names.length === 0) {
+		throw new Error('createIndicatorSet: names must be a non-empty array.');
+	}
+
+	const computers = names.map(name => {
+		const factory = COMPUTERS[name];
+		if (!factory) {
+			throw new Error(
+				`createIndicatorSet: unknown indicator "${name}". ` +
+				`Known: ${Object.keys(COMPUTERS).join(', ')}`
+			);
+		}
+		return factory();
+	});
 
 	return {
 		compute(row) {

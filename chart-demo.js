@@ -49,6 +49,9 @@ import { Button } from './ui/Button.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
+// Live Feed
+import { createCoinsPhFeed } from './chart-demo-coinsph.js';
+
 // CONSTANTS
 
 const WINDOW_MS = 900000;       // 15-minute sliding window
@@ -448,6 +451,36 @@ feed.postMessage({
 feed.postMessage({ type: 'seed' });
 feedRunning = false;
 
+// LIVE FEED
+
+const liveFeed = createCoinsPhFeed({
+	symbol: 'BTCPHP',
+	stream: 'ticker',
+	onOpen: (info) => console.log('[live] connected', info),
+	onClose: (info) => console.log('[live] closed', info),
+	onError: (err) => console.error('[live] error', err),
+
+	onSeed: (rows) => {
+		priceChart.setData(rows);
+		wapChart.setData(rows);
+		bollinger.setData(rows);
+		rsi.setData(rows);
+		volumeChart.setData(rows);
+		macd.setData(rows);
+		plane.update();
+	},
+
+	onTick: (row) => {
+		priceChart.appendPoint(row);
+		wapChart.appendPoint(row);
+		bollinger.appendPoint(row);
+		rsi.appendPoint(row);
+		volumeChart.appendPoint(row);
+		macd.appendPoint(row);
+		plane.update();
+	}
+});
+
 // TOOLBAR
 
 const toolbar = new ToolBar({
@@ -656,6 +689,36 @@ const strategyButton = new Button({
 	onClick: () => cycleStrategy()
 });
 
+const liveButton = new Button({
+	id: 'toggle-live',
+	icon: 'play',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Connect to Coins.ph live feed',
+	selected: false,
+	onClick: () => {
+		if (liveFeed.isConnected) {
+			// Disconnect live, resume simulated seeding.
+			liveFeed.stop();
+			liveButton.setSelected(false);
+			liveButton.setIcon('play');
+			liveButton.setTooltip('Connect to Coins.ph live feed');
+			feed.postMessage({ type: 'reset' });
+		} else {
+			// Stop simulated feed, connect live.
+			feed.postMessage({ type: 'stop' });
+			feedRunning = false;
+			autoButton.setIcon('play');
+			autoButton.setTooltip('Auto-append');
+
+			liveFeed.start();
+			liveButton.setSelected(true);
+			liveButton.setIcon('stop');
+			liveButton.setTooltip('Disconnect from Coins.ph');
+		}
+	}
+});
+
 // ─── Toolbar registration ───
 toolbar.addItem(crosshairButton);
 toolbar.addItem(panButton);
@@ -675,6 +738,8 @@ toolbar.addItem(addBatchButton);
 toolbar.addItem(resetChartsButton);
 toolbar.addItem(autoButton);
 toolbar.addItem(strategyButton);
+
+toolbar.addItem(liveButton);
 
 plane.addLayer(toolbar);
 plane.addLayer(cardStrip);
@@ -732,3 +797,4 @@ document.addEventListener('keydown', (e) => {
 	if (e.key === 'r' || e.key === 'R') resetCharts();
 	if (e.key === 's' || e.key === 'S') cycleStrategy();
 });
+

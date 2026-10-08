@@ -79,6 +79,9 @@ Indicator factories:
   `demo/indicators.js` (`createIndicatorSet`).
 - Rewrote `chart-demo.js` to use the factories.
 - Band stack bottom-to-top: volume, RSI, price, MACD.
+- Made `createIndicatorSet` configurable: takes a list of indicator
+  names, instantiates only those computers. `COMPUTERS` map is the
+  registry.
 
 ## Band configuration (current)
 
@@ -177,6 +180,12 @@ Priority order:
 - Band vertical order = order of `_yGroupOrder`, which is the
   order the first layer for each group is added. Register groups
   bottom-first to stack them top-down.
+- Indicator computation lives in `demo/indicators.js`. Computers
+  are registered in the `COMPUTERS` map. A feed declares which
+  indicators it needs with `createIndicatorSet(['macd', 'rsi'])`.
+  To add an indicator: write the computer, add it to `COMPUTERS`,
+  add the name to the feed's list, add the derived fields to the
+  row, write a rendering factory under `indicators/`.
 
 ## Known refactor candidates (not urgent)
 
