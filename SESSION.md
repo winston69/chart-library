@@ -1,7 +1,7 @@
 # SESSION
 
 Project: multi-band chart library + demo.
-Last update:  07/10/2026 19:59:45.71.
+Last update: <fill in the current date and time>.
 
 ## Purpose of this file
 
@@ -16,11 +16,13 @@ This file explains what the code *means* and where it's going.
 
 ## State
 
-- Four bands, top to bottom: MACD, price + Bollinger + WAP, volume.
-  (STD pane was removed; its math lives only in the feed.)
+- Four bands, bottom to top: volume, RSI, price + Bollinger + WAP,
+  MACD. Top to bottom: MACD, price, RSI, volume.
 - All layers are primitive: one class, one visual concept.
 - The plane handles slots, y-groups, layout, margins, and domain
   union. It knows nothing about specific indicators.
+- Indicators are composed in the application (or in indicator
+  factories), not baked into layer classes.
 
 ## Layer inventory
 
@@ -38,6 +40,11 @@ Primitives:
 
 Card layers (HTML overlay): `CardStrip`, `Legend`, `OHLCCard`, `InfoCard`.
 UI layers: `Button`, `ToolBar`, `ToolTip`.
+
+Indicator factories:
+- `createMACD`       — histogram + MACD line + signal line.
+- `createBollinger`  — fill + lower/upper/mean lines.
+- `createRSI`        — RSI line + 70/30 level lines.
 
 ## Architectural rules
 
@@ -66,59 +73,57 @@ UI layers: `Button`, `ToolBar`, `ToolTip`.
 - Migrated toolbar icons from emoji to SVG.
 - Flattened toolbar buttons: square, no borders, no gaps.
 - Fixed Button.setIcon to rebuild icon node on change.
+- Added indicator factories: `createMACD`, `createBollinger`,
+  `createRSI`.
+- Extracted indicator computation from `chart-demo-feed.js` into
+  `demo/indicators.js` (`createIndicatorSet`).
+- Rewrote `chart-demo.js` to use the factories.
+- Band stack bottom-to-top: volume, RSI, price, MACD.
 
 ## Band configuration (current)
 
-- MACD: 25%      — histogram + MACD line + signal line
-- Price: 55%     — Bollinger (fill + 3 lines), WAP (area + line),
-                   candles, price ghost, WAP ghost
-- Volume: 20%    — signed bars, up/down colored
+const BAND_HEIGHTS = {
+   macd: 0.20,
+   price: 0.45,
+   rsi: 0.15,
+   volume: 0.20
+};
+
+Bottom to top:
+- Volume: 20%  — signed bars, up/down colored.
+- RSI:    15%  — RSI line + 70/30 level lines.
+- Price:  45%  — Bollinger (fill + 3 lines), WAP (area + line),
+                 candles, price ghost, WAP ghost.
+- MACD:   20%  — histogram + MACD line + signal line.
 
 Band heights are declared in `BAND_HEIGHTS` at the top of
 `chart-demo.js`.
 
 ## Feed (`chart-demo-feed.js`)
 
-Worker computes derived fields and emits one row per tick.
+Worker generates raw fields and delegates derived fields to
+`demo/indicators.js` (`createIndicatorSet`). One row per tick.
 
 Row shape:
 - `lastPrice, weightedAvgPrice, prevClosePrice, openPrice,
    highPrice, lowPrice`
 - `openTime, closeTime, eventTime`
-- `bbMean, bbStd, bbUpper, bbLower`     (20-period Bollinger)
 - `volume`                              (correlated with move)
+- `bbMean, bbStd, bbUpper, bbLower`     (20-period Bollinger)
+- `rsi`                                 (14-period Wilder)
 - `macd, macdSignal, macdHistogram`     (12 / 26 / 9 EMA)
 
 Indicators are computed in the worker. Layers render, they don't
-compute. This matches the codebase convention.
+compute.
 
-## Open work
+## Indicator factories
 
-Priority order:
-
-1. Extract MACD construction into a factory (`indicators/MACD.js`).
-2. Extract Bollinger construction into a factory
-   (`indicators/Bollinger.js`).
-3. Rewrite the affected sections of `chart-demo.js` to use the
-   factories. Target: ~80 lines removed from the demo.
-4. (Deferred) Indicator registry (`indicators/registry.js`) — a
-   type-name → factory map. Build when a dropdown is added.
-5. (Deferred) Composition class — a `Layer` facade over a factory
-   for indicators that need to be addressed as units.
-6. (Deferred) Chart DSL — declarative config that maps to registry
-   calls. Build when a serializable config or plugin system is
-   needed.
-
-Steps 4–6 are additive. Each is optional. None requires changing
-the levels below it.
-
-## Factory shape (agreed)
-
-A factory takes a plane and returns a uniform handle:
+Each factory takes a plane and returns a uniform handle:
 
     {
       layers: Layer[],
       group: string,
+      primaryLayer: Layer,
       appendPoint(row),
       setData(rows),
       remove()
@@ -129,25 +134,31 @@ plane, does not manage layout, does not own the axis by default.
 
 Application usage:
 
-    const macd = createMACD({ plane, yGroup: 'macd-group', height: 0.25 });
+    const macd = createMACD({
+        plane,
+        yGroup: 'macd-group',
+        height: BAND_HEIGHTS.macd
+    });
+
     // on tick:        macd.appendPoint(row);
     // on seed:        macd.setData(rows);
     // on toggle off:  macd.remove();
 
-## Known refactor candidates (not urgent)
+## Open work
 
-- `ChartLayer` could absorb `update`, `forceUpdate`, `setData`,
-  `setWindowSize`, `_applyClips`, `_getEffectiveClip`, and the
-  `appendPoint` pipeline (with `_resetCaches` / `_clipKey` hooks).
-  Currently duplicated across `Line`, `BarChart`, `CandleStick`.
-- `_computeCandlePixelWidth` and `_computeBarPixelWidth` share
-  ~25 lines. Extract `Utils.sampledIntervalPixelWidth`.
-- `_trimTail` is similar across three layers. Extract
-  `Utils.findTrimIndex` + `Utils.rangeExtremes`.
+Priority order:
 
-Do not do these until the indicator factories land. They shrink the
-codebase but they don't change what the app does, and the factories
-are the higher-value change.
+1. (Deferred) Indicator registry (`indicators/registry.js`) — type
+   name → factory. Build when a dropdown UI is added.
+2. (Deferred) Composition class over factories.
+3. (Deferred) Chart DSL — declarative config mapping to registry
+   calls.
+4. (Deferred) Single shared DataSeries. One canonical row store;
+   all layers reference it. Removes per-layer data duplication.
+   Requires changing `ChartLayer.appendPoint` and `setData`
+   semantics. Large refactor; no immediate benefit.
+5. (Deferred) `Line` gaining a `constantY` option so level lines
+   (RSI 70/30) don't hold per-row data.
 
 ## Conventions for future sessions
 
@@ -159,6 +170,29 @@ are the higher-value change.
   as methods on classes, small helper functions at module scope.
 - Every new layer needs: a `.js` file, a `.css` file, a `<link>`
   in `index.html`, and a `CSS.<layer>` block in `CSS.js`.
+- Indicator factories must guard delegated calls:
+  `typeof layer.appendPoint === 'function'` before calling.
+  Not every layer owns data — `BandFill`, `Area`, `Points`,
+  `GhostLine` read from a `sourceLayer`.
+- Band vertical order = order of `_yGroupOrder`, which is the
+  order the first layer for each group is added. Register groups
+  bottom-first to stack them top-down.
+
+## Known refactor candidates (not urgent)
+
+- `ChartLayer` could absorb `update`, `forceUpdate`, `setData`,
+  `setWindowSize`, `_applyClips`, `_getEffectiveClip`, and the
+  `appendPoint` pipeline (with `_resetCaches` / `_clipKey`
+  hooks). Currently duplicated across `Line`, `BarChart`,
+  `CandleStick`.
+- `_computeCandlePixelWidth` and `_computeBarPixelWidth` share
+  ~25 lines. Extract `Utils.sampledIntervalPixelWidth`.
+- `_trimTail` is similar across three layers. Extract
+  `Utils.findTrimIndex` + `Utils.rangeExtremes`.
+- `CartesianPlane` should expose `setBandOrder([...])` so
+  vertical stacking is decoupled from layer registration order.
+
+None of these are urgent.
 
 ## How to resume
 

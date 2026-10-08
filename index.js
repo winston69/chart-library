@@ -29,6 +29,11 @@ export { BarChart } from './layers/BarChart.js';
 export { CandleStick } from './layers/CandleStick.js';
 export { ReferenceLine } from './layers/ReferenceLine.js';
 
+// Indicators
+export { createMACD } from './indicators/MACD.js';
+export { createBollinger } from './indicators/Bollinger.js';
+export { createRSI } from './indicators/RSI.js';
+
 // Interaction
 export { ChartSelection } from './interaction/ChartSelection.js';
 export { Selection } from './interaction/Selection.js';

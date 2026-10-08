@@ -3,31 +3,17 @@
 //
 // Simulated live market data feed. Runs off the main thread.
 //
-// Row shape:
-//   {
-//     lastPrice, weightedAvgPrice, prevClosePrice,
-//     openPrice, highPrice, lowPrice,
-//     openTime, closeTime, eventTime,
-//     bbMean, bbStd, bbUpper, bbLower,
-//     volume,
-//     macd, macdSignal, macdHistogram
-//   }
+// Raw fields are generated here. Derived fields (MACD, RSI,
+// Bollinger) are computed by `demo/indicators.js`.
 // ──────────────────────────────────────────────────────────────
+
+import { createIndicatorSet } from './indicators.js';
 
 // ─── Config ───
 let intervalMs = 1000;
 let windowMs = 900000;
 let initialCount = windowMs / intervalMs;
 let eventTimeField = 'eventTime';
-
-// MACD periods
-const MACD_FAST = 12;
-const MACD_SLOW = 26;
-const MACD_SIGNAL = 9;
-
-// Bollinger periods
-const BB_PERIOD = 20;
-const BB_MULTIPLIER = 2;
 
 // ─── Runtime state ───
 let timer = null;
@@ -38,89 +24,8 @@ let data = [];
 let lastPrice = 0.0003619;
 let lastWAP = 0.0003615;
 
-// MACD state
-let emaFast = null;
-let emaSlow = null;
-let emaSignal = null;
-
-// ──────────────────────────────────────────────────────────────
-// Statistics
-// ──────────────────────────────────────────────────────────────
-
-/**
- * Rolling mean and std over the last `period` samples of `field`.
- * Walks backward from the newest sample.
- */
-function rollingMeanStd(history, field, period) {
-	const n = history.length;
-	if (n === 0) return { mean: 0, std: 0 };
-
-	const count = n < period ? n : period;
-	let sum = 0;
-	for (let i = n - count; i < n; i++) sum += history[i][field];
-	const mean = sum / count;
-
-	let variance = 0;
-	for (let i = n - count; i < n; i++) {
-		const d = history[i][field] - mean;
-		variance += d * d;
-	}
-	const std = Math.sqrt(variance / count);
-
-	return { mean, std };
-}
-
-function applyBollingerFields(row, history) {
-	const { mean, std } = rollingMeanStd(history, 'lastPrice', BB_PERIOD);
-	row.bbMean = mean;
-	row.bbStd = std;
-	row.bbUpper = mean + BB_MULTIPLIER * std;
-	row.bbLower = mean - BB_MULTIPLIER * std;
-}
-
-// ──────────────────────────────────────────────────────────────
-// MACD
-// ──────────────────────────────────────────────────────────────
-
-// EMA_t = alpha * price_t + (1 - alpha) * EMA_{t-1}
-// alpha = 2 / (period + 1)
-//
-// Seeded with the first observed price. The first ~3*period samples
-// are warmup — the EMAs haven't converged, and the MACD values are
-// exaggerated. Standard convention.
-function updateMACD(price) {
-	const alphaFast = 2 / (MACD_FAST + 1);
-	const alphaSlow = 2 / (MACD_SLOW + 1);
-	const alphaSignal = 2 / (MACD_SIGNAL + 1);
-
-	if (emaFast === null) {
-		emaFast = price;
-		emaSlow = price;
-	} else {
-		emaFast = alphaFast * price + (1 - alphaFast) * emaFast;
-		emaSlow = alphaSlow * price + (1 - alphaSlow) * emaSlow;
-	}
-
-	const macd = emaFast - emaSlow;
-
-	if (emaSignal === null) {
-		emaSignal = macd;
-	} else {
-		emaSignal = alphaSignal * macd + (1 - alphaSignal) * emaSignal;
-	}
-
-	return {
-		macd,
-		macdSignal: emaSignal,
-		macdHistogram: macd - emaSignal
-	};
-}
-
-function resetMACD() {
-	emaFast = null;
-	emaSlow = null;
-	emaSignal = null;
-}
+// ─── Indicator set ───
+const indicators = createIndicatorSet();
 
 // ──────────────────────────────────────────────────────────────
 // Generators
@@ -158,25 +63,20 @@ function generateRow(eventTime) {
 	const highPrice = Math.max(openPrice, newClose) + Math.random() * wick;
 	const lowPrice = Math.min(openPrice, newClose) - Math.random() * wick;
 
-	// Volume — correlated with the price move magnitude.
 	const moveMag = Math.abs(newClose - openPrice) / (openPrice || 1);
 	const volumeBase = 1200;
 	const volumeNoise = 0.6 + Math.random() * 0.8;
 	const volumeSpike = 1 + moveMag * 500;
 	const volume = Math.round(volumeBase * volumeNoise * volumeSpike);
 
-	// MACD always updates from the new close.
-	const macdValues = updateMACD(newClose);
-
 	const round = v => Math.round(v * 1e7) / 1e7;
 
 	lastPrice = newClose;
 	lastWAP = newWAP;
 
-	return {
+	const row = {
 		lastPrice: round(newClose),
 		weightedAvgPrice: round(newWAP),
-
 		prevClosePrice: round(prevClose),
 		openPrice: round(openPrice),
 		highPrice: round(highPrice),
@@ -184,18 +84,13 @@ function generateRow(eventTime) {
 		openTime,
 		closeTime,
 		eventTime,
-
-		bbMean: 0,
-		bbStd: 0,
-		bbUpper: 0,
-		bbLower: 0,
-
-		volume,
-
-		macd: macdValues.macd,
-		macdSignal: macdValues.macdSignal,
-		macdHistogram: macdValues.macdHistogram
+		volume
 	};
+
+	// Merge derived fields into the row.
+	Object.assign(row, indicators.compute(row));
+
+	return row;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -206,7 +101,7 @@ function generateSeed(count) {
 	data = [];
 	lastPrice = 0.0003619;
 	lastWAP = 0.0003615;
-	resetMACD();
+	indicators.reset();
 
 	const now = Date.now();
 	const startTime = now - (count - 1) * intervalMs;
@@ -218,7 +113,6 @@ function generateSeed(count) {
 		const row = generateRow(eventTime);
 		data.push(row);
 		trimToWindow(eventTime);
-		applyBollingerFields(row, data);
 		out[i] = row;
 	}
 
@@ -234,7 +128,6 @@ function generateTick() {
 	const row = generateRow(now);
 	data.push(row);
 	trimToWindow(now);
-	applyBollingerFields(row, data);
 	return row;
 }
 

@@ -1,0 +1,10 @@
+#rsi-line-group {
+	--line-color: #fbbf24;
+	--line-width: 1.2px;
+}
+
+#rsi-upper-group,
+#rsi-lower-group {
+	--line-color: rgba(251, 191, 36, 0.35);
+	--line-dash: 3 3;
+}

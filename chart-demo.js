@@ -12,40 +12,44 @@
 //   - Live data from a Web Worker (demo-feed.js)
 // ──────────────────────────────────────────────────────────────
 
-import { Events } from './core/Events.js';
-// import { Icons } from './core/Icons.js';
-import { Button } from './ui/Button.js';
-
+// Core
 import { CartesianPlane } from './core/CartesianPlane.js';
+import { Events } from './core/Events.js';
+
+// Axes
 import { XAxis } from './axes/XAxis.js';
 import { YAxis } from './axes/YAxis.js';
 
+// Layers
 import { Line } from './layers/Line.js';
 import { Area } from './layers/Area.js';
-// import { Points } from './layers/Points.js';
 import { GhostLine } from './layers/GhostLine.js';
-import { BandFill } from './layers/BandFill.js';
-
-import { CandleStick } from './layers/CandleStick.js';
 import { BarChart } from './layers/BarChart.js';
-
+import { CandleStick } from './layers/CandleStick.js';
 import { ReferenceLine } from './layers/ReferenceLine.js';
 
+// Indicators
+import { createMACD } from './indicators/MACD.js';
+import { createBollinger } from './indicators/Bollinger.js';
+import { createRSI } from './indicators/RSI.js';
+
+// Interaction
 import { ChartSelection } from './interaction/ChartSelection.js';
 import { CrosshairLayer } from './interaction/CrosshairLayer.js';
 import { InteractionLayer } from './interaction/InteractionLayer.js';
 
+// Cards
 import { CardStrip } from './cards/CardStrip.js';
 import { Legend } from './cards/Legend.js';
 import { OHLCCard } from './cards/OHLCCard.js';
 import { InfoCard } from './cards/InfoCard.js';
 
+// UI
+import { Button } from './ui/Button.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
-// ──────────────────────────────────────────────────────────────
 // CONSTANTS
-// ──────────────────────────────────────────────────────────────
 
 const WINDOW_MS = 900000;       // 15-minute sliding window
 const VISUAL_UPDATE_MS = 1000;  // tick cadence
@@ -53,13 +57,12 @@ const VISUAL_UPDATE_MS = 1000;  // tick cadence
 // Band heights (top → bottom). Sum to 1.
 const BAND_HEIGHTS = {
 	macd: 0.20,
-	price: 0.70,
-	volume: 0.10
+	price: 0.45,
+	rsi: 0.15,
+	volume: 0.20
 };
 
-// ──────────────────────────────────────────────────────────────
 // PLANE
-// ──────────────────────────────────────────────────────────────
 
 const container = document.body;
 
@@ -73,9 +76,7 @@ const plane = new CartesianPlane({
 
 plane.mount(container);
 
-// ──────────────────────────────────────────────────────────────
 // TOOLTIP
-// ──────────────────────────────────────────────────────────────
 
 const tooltip = new ToolTip({
 	id: 'main-tooltip',
@@ -84,15 +85,11 @@ const tooltip = new ToolTip({
 });
 tooltip.render();
 
-// ──────────────────────────────────────────────────────────────
 // SELECTION
-// ──────────────────────────────────────────────────────────────
 
 const chartSelection = new ChartSelection({ plane });
 
-// ──────────────────────────────────────────────────────────────
-// LAYERS — PRICE BAND
-// ──────────────────────────────────────────────────────────────
+// LAYERS
 
 const priceChart = new CandleStick({
 	id: 'price-candles',
@@ -136,51 +133,7 @@ const wapGhost = new GhostLine({
 	sourceLayer: wapChart
 });
 
-// Bollinger on price
-const bbFill = new BandFill({
-	id: 'bb-fill',
-	name: 'Bollinger Fill',
-	plane,
-	lowerSource: null,
-	upperSource: null
-});
-
-const bbLower = new Line({
-	id: 'bb-lower',
-	name: 'BB Lower',
-	label: 'BB −2σ',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.bbLower
-});
-
-const bbUpper = new Line({
-	id: 'bb-upper',
-	name: 'BB Upper',
-	label: 'BB +2σ',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.bbUpper
-});
-
-const bbMean = new Line({
-	id: 'bb-mean',
-	name: 'BB Mean',
-	label: 'BB Mean',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.bbMean
-});
-
-bbFill.lowerSource = bbLower;
-bbFill.upperSource = bbUpper;
-
-// ──────────────────────────────────────────────────────────────
-// LAYERS — VOLUME BAND
-// ──────────────────────────────────────────────────────────────
+// INDICATORS — VOLUME, BOLLINGER AND MACD
 
 const volumeChart = new BarChart({
 	id: 'volume-chart',
@@ -195,71 +148,48 @@ const volumeChart = new BarChart({
 	barWidthFactor: 0.7
 });
 
-// ──────────────────────────────────────────────────────────────
-// LAYERS — MACD BAND
-// ──────────────────────────────────────────────────────────────
-
-const macdHistogramChart = new BarChart({
-	id: 'macd-histogram',
-	name: 'Histogram',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.macdHistogram,
-	directionMode: 'sign',
-	baseline: 'zero',
-	barWidthFactor: 0.9 //0.7
-});
-
-const macdChart = new Line({
-	id: 'macd-line',
-	name: 'MACD',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.macd
-});
-
-const macdSignalChart = new Line({
-	id: 'macd-signal',
-	name: 'Signal',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.macdSignal
-});
-
-// ──────────────────────────────────────────────────────────────
 // LAYER REGISTRATION
-// ──────────────────────────────────────────────────────────────
-// Band order top → bottom: MACD, price, volume.
 // Within each band, registration order determines paint order:
 // earlier layers sit behind later ones.
 
-// Volume band.
+// 1. Volume — bottom band
 plane.addLayer(volumeChart, { yGroup: 'volume-group', height: BAND_HEIGHTS.volume });
 
-// Price band — ghosts, then Bollinger, then WAP area, then data.
+// 2. RSI — above volume
+const rsi = createRSI({
+	plane,
+	yGroup: 'rsi-group',
+	height: BAND_HEIGHTS.rsi,
+	decimals: 2,
+	idPrefix: 'rsi'
+});
+
+// 3. Price + Bollinger + WAP — middle band
 plane.addLayer(priceGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 plane.addLayer(wapGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 
-plane.addLayer(bbFill, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(bbLower, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(bbUpper, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(bbMean, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+const bollinger = createBollinger({
+	plane,
+	yGroup: 'price-group',
+	height: BAND_HEIGHTS.price,
+	decimals: 7,
+	idPrefix: 'bb'
+});
 
 plane.addLayer(wapArea, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(wapChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 plane.addLayer(priceChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+plane.addLayer(wapChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 
-// MACD band — histogram behind the two lines.
-plane.addLayer(macdHistogramChart, { yGroup: 'macd-group', height: BAND_HEIGHTS.macd });
-plane.addLayer(macdChart, { yGroup: 'macd-group', height: BAND_HEIGHTS.macd });
-plane.addLayer(macdSignalChart, { yGroup: 'macd-group', height: BAND_HEIGHTS.macd });
+// 4. MACD — top band
+const macd = createMACD({
+	plane,
+	yGroup: 'macd-group',
+	height: BAND_HEIGHTS.macd,
+	decimals: 7,
+	idPrefix: 'macd'
+});
 
-// ──────────────────────────────────────────────────────────────
 // AXES
-// ──────────────────────────────────────────────────────────────
 
 const timeFormat = new Intl.DateTimeFormat("en-US", {
 	hour: '2-digit',
@@ -318,7 +248,7 @@ const macdYAxis = new YAxis({
 	label: 'MACD',
 	orientation: 'right',
 	positionIntent: 'outside',
-	scale: plane.getYScaleForChart(macdChart),
+	scale: plane.getYScaleForChart(macd.primaryLayer),
 	bandGroupId: 'macd-group',
 	showGrid: false,
 	showTicks: true,
@@ -327,14 +257,27 @@ const macdYAxis = new YAxis({
 	tickCount: 4
 });
 
+const rsiYAxis = new YAxis({
+	id: 'rsi-y-axis',
+	label: 'RSI',
+	orientation: 'right',
+	positionIntent: 'outside',
+	scale: plane.getYScaleForChart(rsi.primaryLayer),
+	bandGroupId: 'rsi-group',
+	showGrid: false,
+	showTicks: true,
+	showTickLabels: true,
+	showLabel: true,
+	tickCount: 4,
+	decimals: 0
+});
 plane.addLayer(xAxis);
-plane.addLayer(priceYAxis);
 plane.addLayer(volumeYAxis);
+plane.addLayer(rsiYAxis);
+plane.addLayer(priceYAxis);
 plane.addLayer(macdYAxis);
 
-// ──────────────────────────────────────────────────────────────
 // REFERENCE LINE
-// ──────────────────────────────────────────────────────────────
 
 const referenceLine = new ReferenceLine({
 	id: 'ref-line',
@@ -349,9 +292,7 @@ const referenceLine = new ReferenceLine({
 
 plane.addLayer(referenceLine);
 
-// ──────────────────────────────────────────────────────────────
 // CROSSHAIR
-// ──────────────────────────────────────────────────────────────
 
 const crosshair = new CrosshairLayer({
 	id: 'crosshair',
@@ -359,13 +300,12 @@ const crosshair = new CrosshairLayer({
 	yAxes: {
 		'macd-group': macdYAxis,
 		'price-group': priceYAxis,
+		'rsi-group': rsiYAxis,
 		'volume-group': volumeYAxis
 	}
 });
 
-// ──────────────────────────────────────────────────────────────
 // CARD STRIP
-// ──────────────────────────────────────────────────────────────
 
 const cardStrip = new CardStrip({
 	id: 'main-card-strip',
@@ -374,9 +314,7 @@ const cardStrip = new CardStrip({
 	defaultCardWidth: 96
 });
 
-// ──────────────────────────────────────────────────────────────
 // INTERACTION
-// ──────────────────────────────────────────────────────────────
 
 const interaction = new InteractionLayer({
 	id: 'interaction',
@@ -402,9 +340,7 @@ const interaction = new InteractionLayer({
 
 plane.addLayer(interaction);
 
-// ──────────────────────────────────────────────────────────────
 // CARDS
-// ──────────────────────────────────────────────────────────────
 
 const legendCard = new Legend({
 	id: 'main-legend',
@@ -418,7 +354,8 @@ const legendCard = new Legend({
 		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(7) },
 		{ label: 'WAP', layer: wapChart, color: '#ffd43b', format: v => v.toFixed(7) },
 		{ label: 'Volume', layer: volumeChart, color: '#4dabf7', format: v => v.toFixed(0) },
-		{ label: 'MACD', layer: macdChart, color: '#22d3ee', format: v => v.toFixed(7) }
+		{ label: 'MACD', layer: macd.macdLine, color: '#22d3ee', format: v => v.toFixed(7) },
+		{ label: 'BB Mean', layer: bollinger.meanLine, color: '#845ef7', format: v => v.toFixed(7) }
 	]
 });
 cardStrip.addCard(legendCard);
@@ -456,9 +393,7 @@ crosshair.onMove = (payload) => {
 	ohlcCard.onCrosshairMove(payload);
 };
 
-// ──────────────────────────────────────────────────────────────
 // DATA FEED
-// ──────────────────────────────────────────────────────────────
 
 const feed = new Worker('./chart-demo-feed.js', { type: 'module' });
 
@@ -472,26 +407,20 @@ feed.onmessage = (evt) => {
 		case 'seed': {
 			priceChart.setData(msg.data);
 			wapChart.setData(msg.data);
-			bbMean.setData(msg.data);
-			bbUpper.setData(msg.data);
-			bbLower.setData(msg.data);
+			bollinger.setData(msg.data);
+			rsi.setData(msg.data);
 			volumeChart.setData(msg.data);
-			macdChart.setData(msg.data);
-			macdSignalChart.setData(msg.data);
-			macdHistogramChart.setData(msg.data);
+			macd.setData(msg.data);
 			plane.update();
 			break;
 		}
 		case 'tick': {
 			priceChart.appendPoint(msg.data);
 			wapChart.appendPoint(msg.data);
-			bbMean.appendPoint(msg.data);
-			bbUpper.appendPoint(msg.data);
-			bbLower.appendPoint(msg.data);
+			bollinger.appendPoint(msg.data);
+			rsi.appendPoint(msg.data);
 			volumeChart.appendPoint(msg.data);
-			macdChart.appendPoint(msg.data);
-			macdSignalChart.appendPoint(msg.data);
-			macdHistogramChart.appendPoint(msg.data);
+			macd.appendPoint(msg.data);
 			plane.update();
 			break;
 		}
@@ -519,9 +448,7 @@ feed.postMessage({
 feed.postMessage({ type: 'seed' });
 feedRunning = false;
 
-// ──────────────────────────────────────────────────────────────
 // TOOLBAR
-// ──────────────────────────────────────────────────────────────
 
 const toolbar = new ToolBar({
 	id: 'main-toolbar',
@@ -754,9 +681,7 @@ plane.addLayer(cardStrip);
 
 plane.update();
 
-// ──────────────────────────────────────────────────────────────
 // DATA MUTATION
-// ──────────────────────────────────────────────────────────────
 
 function appendPoint() {
 	feed.postMessage({ type: 'tick' });
@@ -769,9 +694,7 @@ function resetCharts() {
 	autoButton.setTooltip('Auto-append');
 }
 
-// ──────────────────────────────────────────────────────────────
 // DEMO CONTROLS
-// ──────────────────────────────────────────────────────────────
 
 let strategyIndex = 0;
 const strategies = ['sliding', 'expanding', 'static'];
@@ -798,9 +721,7 @@ function cycleStrategy() {
 	plane.update();
 }
 
-// ──────────────────────────────────────────────────────────────
 // KEYBOARD SHORTCUTS
-// ──────────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
 	if (e.key === ' ' || e.key === 'Space') {
