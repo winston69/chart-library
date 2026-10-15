@@ -157,17 +157,10 @@ Application usage:
 
 Priority order:
 
-1. (Deferred) Indicator registry (`indicators/registry.js`) — type
-   name → factory. Build when a dropdown UI is added.
-2. (Deferred) Composition class over factories.
-3. (Deferred) Chart DSL — declarative config mapping to registry
-   calls.
-4. (Deferred) Single shared DataSeries. One canonical row store;
-   all layers reference it. Removes per-layer data duplication.
-   Requires changing `ChartLayer.appendPoint` and `setData`
-   semantics. Large refactor; no immediate benefit.
-5. (Deferred) `Line` gaining a `constantY` option so level lines
-   (RSI 70/30) don't hold per-row data.
+1. See HANDOFF.md — candle interval / bucketing / live-candle updates.
+   This is the current focus.
+2. (Deferred) Indicator registry, composition class, Chart DSL.
+3. (Deferred) Single shared DataSeries.
 
 ## Conventions for future sessions
 
