@@ -49,13 +49,10 @@ import { Button } from './ui/Button.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
-// Live Feed
-import { createCoinsPhFeed } from './chart-demo-coinsph.js';
-
 // CONSTANTS
 
 const WINDOW_MS = 900000;       // 15-minute sliding window
-const VISUAL_UPDATE_MS = 1000;  // tick cadence
+const VISUAL_UPDATE_MS = 60000;  // tick cadence
 
 // Band heights (top → bottom). Sum to 1.
 const BAND_HEIGHTS = {
@@ -71,7 +68,7 @@ const container = document.body;
 
 const plane = new CartesianPlane({
 	id: 'main-plane',
-	domainStrategy: 'sliding',
+	domainStrategy: 'sliding', //'sliding',
 	windowSize: WINDOW_MS,
 	xScaleType: 'time',
 	autoAdjustY: true
@@ -124,17 +121,17 @@ const wapArea = new Area({
 	baseline: 'dataMin'
 });
 
-const priceGhost = new GhostLine({
-	id: 'price-ghost',
-	plane,
-	sourceLayer: priceChart
-});
+// const priceGhost = new GhostLine({
+// 	id: 'price-ghost',
+// 	plane,
+// 	sourceLayer: priceChart
+// });
 
-const wapGhost = new GhostLine({
-	id: 'wap-ghost',
-	plane,
-	sourceLayer: wapChart
-});
+// const wapGhost = new GhostLine({
+// 	id: 'wap-ghost',
+// 	plane,
+// 	sourceLayer: wapChart
+// });
 
 // INDICATORS — VOLUME, BOLLINGER AND MACD
 
@@ -168,8 +165,8 @@ const rsi = createRSI({
 });
 
 // 3. Price + Bollinger + WAP — middle band
-plane.addLayer(priceGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(wapGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+// plane.addLayer(priceGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+// plane.addLayer(wapGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 
 const bollinger = createBollinger({
 	plane,
@@ -398,42 +395,58 @@ crosshair.onMove = (payload) => {
 
 // DATA FEED
 
+// DATA FEEDS — SIMULATED + LIVE
+
 const feed = new Worker('./chart-demo-feed.js', { type: 'module' });
+const liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
 
 let feedRunning = false;
+let liveRunning = false;
+
+// Both workers post the same message shapes:
+//   { type: 'seed',  data: [row, ...] }
+//   { type: 'tick',  data: row }
+//   { type: 'state', running, connected }
+//   { type: 'error', message }
+
+function applySeed(rows) {
+	priceChart.setData(rows);
+	wapChart.setData(rows);
+	bollinger.setData(rows);
+	rsi.setData(rows);
+	volumeChart.setData(rows);
+	macd.setData(rows);
+	plane.update();
+}
+
+function applyTick(row) {
+	priceChart.appendPoint(row);
+	wapChart.appendPoint(row);
+	bollinger.appendPoint(row);
+	rsi.appendPoint(row);
+	volumeChart.appendPoint(row);
+	macd.appendPoint(row);
+	plane.update();
+}
 
 feed.onmessage = (evt) => {
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
 
 	switch (msg.type) {
-		case 'seed': {
-			priceChart.setData(msg.data);
-			wapChart.setData(msg.data);
-			bollinger.setData(msg.data);
-			rsi.setData(msg.data);
-			volumeChart.setData(msg.data);
-			macd.setData(msg.data);
-			plane.update();
+		case 'seed':
+			applySeed(msg.data);
 			break;
-		}
-		case 'tick': {
-			priceChart.appendPoint(msg.data);
-			wapChart.appendPoint(msg.data);
-			bollinger.appendPoint(msg.data);
-			rsi.appendPoint(msg.data);
-			volumeChart.appendPoint(msg.data);
-			macd.appendPoint(msg.data);
-			plane.update();
+		case 'tick':
+			applyTick(msg.data);
 			break;
-		}
-		case 'state': {
+		case 'state':
 			feedRunning = msg.running;
 			autoButton.setIcon(msg.running ? 'stop' : 'play');
 			autoButton.setTooltip(msg.running ? 'Stop auto-append' : 'Auto-append');
 			break;
-		}
-		default:
+		case 'error':
+			console.error('[feed]', msg.message);
 			break;
 	}
 };
@@ -442,6 +455,7 @@ feed.onerror = (err) => {
 	console.error('[DataFeed] worker error:', err.message || err);
 };
 
+// Configure both feeds.
 feed.postMessage({
 	type: 'config',
 	intervalMs: VISUAL_UPDATE_MS,
@@ -449,36 +463,49 @@ feed.postMessage({
 	eventTimeField: 'eventTime'
 });
 feed.postMessage({ type: 'seed' });
-feedRunning = false;
 
-// LIVE FEED
 
-const liveFeed = createCoinsPhFeed({
-	symbol: 'BTCPHP',
-	stream: 'ticker',
-	onOpen: (info) => console.log('[live] connected', info),
-	onClose: (info) => console.log('[live] closed', info),
-	onError: (err) => console.error('[live] error', err),
+liveWorker.onmessage = (evt) => {
+	const msg = evt.data;
+	if (!msg || typeof msg.type !== 'string') return;
 
-	onSeed: (rows) => {
-		priceChart.setData(rows);
-		wapChart.setData(rows);
-		bollinger.setData(rows);
-		rsi.setData(rows);
-		volumeChart.setData(rows);
-		macd.setData(rows);
-		plane.update();
-	},
-
-	onTick: (row) => {
-		priceChart.appendPoint(row);
-		wapChart.appendPoint(row);
-		bollinger.appendPoint(row);
-		rsi.appendPoint(row);
-		volumeChart.appendPoint(row);
-		macd.appendPoint(row);
-		plane.update();
+	switch (msg.type) {
+		case 'seed':
+			applySeed(msg.data);
+			break;
+		case 'tick':
+			applyTick(msg.data);
+			break;
+		case 'state':
+			liveRunning = msg.running;
+			// The button reflects both running and connected.
+			liveButton.setSelected(msg.running);
+			liveButton.setIcon(msg.running ? 'stop' : 'play');
+			liveButton.setTooltip(
+				msg.running
+					? (msg.connected ? 'Disconnect from live feed' : 'Connecting…')
+					: 'Connect to live feed'
+			);
+			break;
+		case 'error':
+			console.error('[live]', msg.message);
+			break;
 	}
+};
+
+liveWorker.onerror = (err) => {
+	console.error('[LiveFeed] worker error:', err.message || err);
+};
+
+
+liveWorker.postMessage({
+	type: 'config',
+	symbol: 'BTCPHP',
+	stream: 'trade',
+	bucketMs: 60000,
+	windowMs: WINDOW_MS,
+	eventTimeField: 'eventTime',
+	indicators: ['macd', 'rsi', 'bollinger']
 });
 
 // TOOLBAR
@@ -694,28 +721,25 @@ const liveButton = new Button({
 	icon: 'play',
 	size: 'sm',
 	variant: 'ghost',
-	tooltip: 'Connect to Coins.ph live feed',
+	tooltip: 'Connect to live feed',
 	selected: false,
 	onClick: () => {
-		if (liveFeed.isConnected) {
-			// Disconnect live, resume simulated seeding.
-			liveFeed.stop();
-			liveButton.setSelected(false);
-			liveButton.setIcon('play');
-			liveButton.setTooltip('Connect to Coins.ph live feed');
+		clearAllCharts();
+
+		if (liveRunning) {
+			// Stop live worker, restart the simulated feed.
+			liveWorker.postMessage({ type: 'stop' });
 			feed.postMessage({ type: 'reset' });
 		} else {
-			// Stop simulated feed, connect live.
+			// Stop simulated feed, start the live worker.
 			feed.postMessage({ type: 'stop' });
 			feedRunning = false;
 			autoButton.setIcon('play');
 			autoButton.setTooltip('Auto-append');
-
-			liveFeed.start();
-			liveButton.setSelected(true);
-			liveButton.setIcon('stop');
-			liveButton.setTooltip('Disconnect from Coins.ph');
+			liveWorker.postMessage({ type: 'start' });
 		}
+		// The button's visual state is updated from the worker's
+		// `state` messages, not here. See liveWorker.onmessage.
 	}
 });
 
@@ -752,10 +776,21 @@ function appendPoint() {
 	feed.postMessage({ type: 'tick' });
 }
 
+function clearAllCharts() {
+	priceChart.setData([]);
+	wapChart.setData([]);
+	bollinger.setData([]);
+	rsi.setData([]);
+	volumeChart.setData([]);
+	macd.setData([]);
+	plane.update();
+}
+
 function resetCharts() {
+	clearAllCharts();
 	feed.postMessage({ type: 'reset' });
 	feedRunning = false;
-	autoButton.setIcon('▶️');
+	autoButton.setIcon('play');
 	autoButton.setTooltip('Auto-append');
 }
 

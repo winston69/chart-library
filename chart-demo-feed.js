@@ -25,7 +25,7 @@ let lastPrice = 0.0003619;
 let lastWAP = 0.0003615;
 
 // ─── Indicator set ───
-const indicators = createIndicatorSet();
+const indicators = createIndicatorSet(['macd', 'rsi', 'bollinger']);
 
 // ──────────────────────────────────────────────────────────────
 // Generators

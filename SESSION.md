@@ -82,6 +82,12 @@ Indicator factories:
 - Made `createIndicatorSet` configurable: takes a list of indicator
   names, instantiates only those computers. `COMPUTERS` map is the
   registry.
+- Converted the live feed to a module worker (`chart-demo-live.js`).
+  Same message protocol as `chart-demo-feed.js`: `config`, `start`,
+  `stop`, `reset` in; `seed`, `tick`, `state`, `error` out.
+- Removed the ghost from `CandleStick` (it was extracted as
+  `GhostLine` earlier but the old code was still present).
+- Live feed uses `<symbol>@trade` with 60-second buckets.
 
 ## Band configuration (current)
 
@@ -186,6 +192,9 @@ Priority order:
   To add an indicator: write the computer, add it to `COMPUTERS`,
   add the name to the feed's list, add the derived fields to the
   row, write a rendering factory under `indicators/`.
+- Feeds are module workers. They accept a `config` message and
+  emit `seed`, `tick`, `state`, `error`. The main thread's
+  handlers are shared between simulated and live workers.
 
 ## Known refactor candidates (not urgent)
 

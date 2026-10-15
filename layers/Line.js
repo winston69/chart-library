@@ -132,7 +132,7 @@ export class Line extends ChartLayer {
 			const d = renderData[i];
 			const px = xScale.toScreen(xAcc(d));
 			const py = yScale.toScreen(yAcc(d));
-			if (!isFinite(px) || !isFinite(py)) continue; //TEMP
+			// if (!isFinite(px) || !isFinite(py)) continue; //TEMP
 			parts.push(px, ',', py, ' ');
 		}
 

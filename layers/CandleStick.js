@@ -1,12 +1,15 @@
 // ──────────────────────────────────────────────────────────────
 // CandleStick.js
+//
+// Wicks and bodies only. The ghost line (dashed projection
+// through the close prices) is provided by the standalone
+// GhostLine layer when the caller wants it.
 // ──────────────────────────────────────────────────────────────
 
 import { SVG } from '../core/SVG.js';
 import { CSS } from '../core/CSS.js';
 import { ChartLayer } from '../core/ChartLayer.js';
 import { Events } from '../core/Events.js';
-import { Utils } from '../core/Utils.js';
 
 const css = CSS.candleStick;
 
@@ -54,9 +57,7 @@ export class CandleStick extends ChartLayer {
 
 		// DOM
 		this._elements = {
-			outer: null,          // unclipped wrapper
 			group: null,
-			ghostPath: null,
 			wickPath: null,
 			upBodyPath: null,
 			downBodyPath: null
@@ -72,14 +73,12 @@ export class CandleStick extends ChartLayer {
 		this._dWicks = null;
 		this._dUp = null;
 		this._dDown = null;
-		this._dGhost = null;
 		this._renderKey = null;
 
 		// Reusable string builders
 		this._wickParts = [];
 		this._upParts = [];
 		this._downParts = [];
-		this._ghostParts = [];
 
 		if (this.data.length > 0) this._recalcStats(this.data);
 	}
@@ -91,39 +90,20 @@ export class CandleStick extends ChartLayer {
 		if (!this._contentCreated) {
 			this._createContent(container);
 			this._contentCreated = true;
-		} else if (this._elements.outer && !this._elements.outer.parentNode) {
-			SVG.append(container, this._elements.outer);
+		} else if (this._elements.group && !this._elements.group.parentNode) {
+			SVG.append(container, this._elements.group);
 		}
 
 		this._renderData();
-		return this._elements.outer;
+		return this._elements.group;
 	}
 
 	_createContent(container) {
-		// Outer, unclipped wrapper. Renders into the band slot; the
-		// ghost lives here so it can extend beyond the clip rect.
-		const outer = SVG.create('g', {
-			id: `${this.id}-outer`,
-			class: css.outer || 'candle-group-outer'
-		});
-		SVG.append(container, outer);
-		this._elements.outer = outer;
-
-		// Ghost sits behind the candles, unclipped.
-		const ghostClass = `${css.path || 'candle-path'} ${css.pathGhost || 'candle-path-ghost'}`;
-		this._elements.ghostPath = SVG.create('polyline', {
-			id: `${this.id}-ghost`,
-			class: ghostClass,
-			visibility: 'hidden'
-		});
-		SVG.append(outer, this._elements.ghostPath);
-
-		// Inner, clipped group. Wicks and bodies live here.
 		const g = SVG.create('g', {
 			id: `${this.id}-group`,
 			class: css.group
 		});
-		SVG.append(outer, g);
+		SVG.append(container, g);
 		this._elements.group = g;
 
 		this._elements.wickPath = SVG.create('path', {
@@ -190,23 +170,15 @@ export class CandleStick extends ChartLayer {
 		const wickParts = this._wickParts;
 		const upParts = this._upParts;
 		const downParts = this._downParts;
-		const ghostParts = this._ghostParts;
 		wickParts.length = 0;
 		upParts.length = 0;
 		downParts.length = 0;
-		ghostParts.length = 0;
 
 		for (let i = 0; i < len; i++) {
 			const d = data[i];
 			const xData = xAcc(d);
 
-			if (!isFinite(xData)) continue;
-
-			const xPix = xScale.toScreen(xData);
-			if (!isFinite(xPix)) continue;
-
-			// Candle geometry — filtered to the padded visible range.
-			if (xData < dMin || xData > dMax) continue;
+			if (!isFinite(xData) || xData < dMin || xData > dMax) continue;
 
 			const o = oAcc(d);
 			const h = hAcc(d);
@@ -214,6 +186,9 @@ export class CandleStick extends ChartLayer {
 			const c = cAcc(d);
 
 			if (!isFinite(o) || !isFinite(h) || !isFinite(l) || !isFinite(c)) continue;
+
+			const xPix = xScale.toScreen(xData);
+			if (!isFinite(xPix)) continue;
 
 			const yHigh = yScale.toScreen(h);
 			const yLow = yScale.toScreen(l);
@@ -275,13 +250,29 @@ export class CandleStick extends ChartLayer {
 	_computeCandlePixelWidth(xScale, data) {
 		const len = data.length;
 		if (len === 0) return this.minCandleWidth;
+
 		if (len === 1) {
 			const w = Math.max(this.minCandleWidth, this.plane.plotWidth * 0.02);
 			return w;
 		}
 
-		const pixelGap = Utils.sampledIntervalPixelWidth(data, this.xAccessor, xScale);
-		if (pixelGap === null) return this.minCandleWidth;
+		const xAcc = this.xAccessor;
+		const sampleCount = len - 1 < 100 ? len - 1 : 100;
+		let minGap = Infinity;
+
+		for (let i = 0; i < sampleCount; i++) {
+			const xa = xAcc(data[i]);
+			const xb = xAcc(data[i + 1]);
+			if (!isFinite(xa) || !isFinite(xb)) continue;
+			const gap = xb > xa ? xb - xa : xa - xb;
+			if (gap > 0 && gap < minGap) minGap = gap;
+		}
+
+		if (!isFinite(minGap) || minGap <= 0) return this.minCandleWidth;
+
+		const x0 = xScale.toScreen(0);
+		const x1 = xScale.toScreen(minGap);
+		const pixelGap = x1 > x0 ? x1 - x0 : x0 - x1;
 
 		const w = pixelGap * this.candleWidthFactor;
 		return w > this.minCandleWidth ? w : this.minCandleWidth;
@@ -552,7 +543,6 @@ export class CandleStick extends ChartLayer {
 		this._dWicks = null;
 		this._dUp = null;
 		this._dDown = null;
-		this._dGhost = null;
 		this.update();
 		return this;
 	}
@@ -560,12 +550,10 @@ export class CandleStick extends ChartLayer {
 	// ─── Lifecycle ───
 	destroy() {
 		super.destroy();
-		const outer = this._elements.outer;
-		if (outer && outer.parentNode) outer.parentNode.removeChild(outer);
+		const group = this._elements.group;
+		if (group && group.parentNode) group.parentNode.removeChild(group);
 		this._elements = {
-			outer: null,
 			group: null,
-			ghostPath: null,
 			wickPath: null,
 			upBodyPath: null,
 			downBodyPath: null
@@ -575,12 +563,10 @@ export class CandleStick extends ChartLayer {
 		this._dWicks = null;
 		this._dUp = null;
 		this._dDown = null;
-		this._dGhost = null;
 		this._renderKey = null;
 		this._wickParts = [];
 		this._upParts = [];
 		this._downParts = [];
-		this._ghostParts = [];
 	}
 }
 
