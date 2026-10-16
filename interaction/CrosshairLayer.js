@@ -44,6 +44,7 @@ export class CrosshairLayer extends AnnotationLayer {
 		this.snapRadius = options.snapDotRadius !== undefined
 			? options.snapDotRadius
 			: CSS.getNumber('--crosshair-snap-radius');
+		this.snapPulse = options.snapPulse !== undefined ? options.snapPulse : true;
 
 		// ─── FORMATTERS ───
 		this.xFormatter = options.xFormatter || null;
@@ -57,7 +58,9 @@ export class CrosshairLayer extends AnnotationLayer {
 			group: null,
 			vLine: null,
 			xLabel: null,
+			snapGroup: null,
 			snapDot: null,
+			snapRings: [],
 			bandGroups: Object.create(null)
 		};
 
@@ -195,15 +198,44 @@ export class CrosshairLayer extends AnnotationLayer {
 		}
 
 		if (this.showSnapDot) {
-			this._elements.snapDot = SVG.create('circle', {
-				id: `${this.id}-snap-dot`,
-				class: css.snapDot,
-				cx: 0,
-				cy: 0,
-				r: this.snapRadius,
-				visibility: 'hidden'
-			});
-			SVG.append(g, this._elements.snapDot);
+			this._createSnapIndicator(g);
+		}
+	}
+
+	_createSnapIndicator(parent) {
+		const snapGroup = SVG.create('g', {
+			id: `${this.id}-snap-group`,
+			class: css.snapGroup,
+			visibility: 'hidden',
+			'pointer-events': 'none'
+		});
+		SVG.append(parent, snapGroup);
+		this._elements.snapGroup = snapGroup;
+
+		const dot = SVG.create('circle', {
+			id: `${this.id}-snap-dot`,
+			class: css.snapDot,
+			cx: 0,
+			cy: 0,
+			r: this.snapRadius
+		});
+		SVG.append(snapGroup, dot);
+		this._elements.snapDot = dot;
+
+		if (this.snapPulse) {
+			const rings = [];
+			for (let i = 0; i < 3; i++) {
+				const ring = SVG.create('circle', {
+					id: `${this.id}-snap-ring-${i}`,
+					class: css.snapRing,
+					cx: 0,
+					cy: 0,
+					r: this.snapRadius * 1.5
+				});
+				SVG.append(snapGroup, ring);
+				rings.push(ring);
+			}
+			this._elements.snapRings = rings;
 		}
 	}
 
@@ -541,12 +573,12 @@ export class CrosshairLayer extends AnnotationLayer {
 	}
 
 	_updateSnapDot(snap, groupId, yPixel) {
-		const dot = this._elements.snapDot;
-		if (!dot) return;
+		const group = this._elements.snapGroup;
+		if (!group) return;
 
 		if (snap.kind !== 'data' || !snap.sampleGroupId) {
 			if (this._lastSnapDotKey !== null) {
-				dot.setAttribute('visibility', 'hidden');
+				group.setAttribute('visibility', 'hidden');
 				this._lastSnapDotKey = null;
 			}
 			return;
@@ -558,18 +590,8 @@ export class CrosshairLayer extends AnnotationLayer {
 		if (key === this._lastSnapDotKey) return;
 		this._lastSnapDotKey = key;
 
-		dot.setAttribute('cx', cx);
-		dot.setAttribute('cy', cy);
-
-		// Fill is data-driven: match the snapped layer's color when
-		// it has one. Otherwise the CSS default applies.
-		if (snap.layer && snap.layer.color) {
-			dot.setAttribute('fill', snap.layer.color);
-		} else {
-			dot.removeAttribute('fill');
-		}
-
-		dot.setAttribute('visibility', 'visible');
+		group.setAttribute('transform', `translate(${cx}, ${cy})`);
+		group.setAttribute('visibility', 'visible');
 	}
 
 	// ─── Band lookup ───
@@ -727,8 +749,8 @@ export class CrosshairLayer extends AnnotationLayer {
 	_hideAll() {
 		this._setVisible(false);
 		this._hideAllHorizontal();
-		if (this._elements.snapDot && this._lastSnapDotKey !== null) {
-			this._elements.snapDot.setAttribute('visibility', 'hidden');
+		if (this._elements.snapGroup && this._lastSnapDotKey !== null) {
+			this._elements.snapGroup.setAttribute('visibility', 'hidden');
 			this._lastSnapDotKey = null;
 		}
 		this._lastVX = null;
@@ -763,7 +785,9 @@ export class CrosshairLayer extends AnnotationLayer {
 			group: null,
 			vLine: null,
 			xLabel: null,
+			snapGroup: null,
 			snapDot: null,
+			snapRings: [],
 			bandGroups: Object.create(null)
 		};
 		this._contentCreated = false;

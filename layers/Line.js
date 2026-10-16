@@ -2,10 +2,10 @@
 // Line.js
 // ──────────────────────────────────────────────────────────────
 
+import { Events } from '../core/Events.js'
 import { SVG } from '../core/SVG.js';
 import { CSS } from '../core/CSS.js';
 import { ChartLayer } from '../core/ChartLayer.js';
-import { Events } from '../core/Events.js';
 import { Utils } from '../core/Utils.js';
 
 const css = CSS.line;
@@ -26,12 +26,12 @@ export class Line extends ChartLayer {
 			data: options.data,
 			xAccessor: options.xAccessor,
 			yAccessor: options.yAccessor,
-			decimals: options.decimals
+			decimals: options.decimals,
+			trimTail: options.trimTail
 		});
 
 		// Behavior
 		this.maxPoints = options.maxPoints || 5000;
-		this.trimTail = options.trimTail !== undefined ? options.trimTail : true;
 		this.downsample = options.downsample !== undefined ? options.downsample : true;
 
 		// Clipping
@@ -132,7 +132,6 @@ export class Line extends ChartLayer {
 			const d = renderData[i];
 			const px = xScale.toScreen(xAcc(d));
 			const py = yScale.toScreen(yAcc(d));
-			// if (!isFinite(px) || !isFinite(py)) continue; //TEMP
 			parts.push(px, ',', py, ' ');
 		}
 
@@ -249,38 +248,8 @@ export class Line extends ChartLayer {
 
 		if (this.trimTail && this.data.length > 0) {
 			const lastX = this.xAccessor(this.data[this.data.length - 1]);
-			const cutoff = lastX - windowSize;
-
-			const xAcc = this.xAccessor;
-			const yAcc = this.yAccessor;
-			let firstKeep = 0;
-			while (firstKeep < this.data.length && xAcc(this.data[firstKeep]) < cutoff) {
-				firstKeep++;
-			}
-
-			if (firstKeep > 0) {
-				let removedMin = Infinity;
-				let removedMax = -Infinity;
-				for (let i = 0; i < firstKeep; i++) {
-					const y = yAcc(this.data[i]);
-					if (y < removedMin) removedMin = y;
-					if (y > removedMax) removedMax = y;
-				}
-
-				const s = this._stats;
-				const needRescan = (removedMin <= s.yMin) || (removedMax >= s.yMax);
-
-				this.data = this.data.slice(firstKeep);
-
-				if (needRescan) {
-					this._recalcStats(this.data);
-				} else {
-					s.pointCount = this.data.length;
-				}
-
-				this._cachedPath = null;
-				this._dataDirty = true;
-			}
+			const cutoff = lastX - this._windowSize;
+			this._trimTail(cutoff);
 		}
 
 		if (this.plane && this.plane._onLayerStatsChanged) {
@@ -311,8 +280,8 @@ export class Line extends ChartLayer {
 		if (x > s.xMax) s.xMax = x;
 
 		const plane = this.plane;
-		if (this.trimTail && plane && plane.windowSize) {
-			const cutoff = x - plane.windowSize;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = x - this._windowSize;
 			this._trimTail(cutoff);
 		} else if (this.trimTail && this.maxPoints && this.maxPoints !== Infinity && this.data.length > this.maxPoints) {
 			this.data = Utils.limitPoints(this.data, this.maxPoints);
@@ -335,15 +304,77 @@ export class Line extends ChartLayer {
 		}
 		if (plane && plane.update) plane.update();
 
-		try {
-			if (plane && plane.events) {
-				plane.events.emit(Events.POINT_ADDED, { point, layer: this });
-				plane.events.emit(Events.LAST_POINT_UPDATED, {
-					layer: this, stats: this.getStats(),
-					lastPoint: { x: s.lastX, y: s.lastY }
-				});
-			}
-		} catch (e) { /* ignore */ }
+		this._emitPointAdded(point);
+
+		return this;
+	}
+
+	/**
+	 * Replace the open (last) row in place. Fires LAST_POINT_UPDATED only.
+	 *
+	 * If the replaced row's y was the running yMin or yMax, the true
+	 * extreme may have moved; rescan in that case. Otherwise the
+	 * incremental delta is exact.
+	 *
+	 * x is assumed constant within an open row (bucket time), so xMin
+	 * and xMax are unaffected by an update.
+	 */
+	updateLastPoint(point) {
+		const len = this.data.length;
+		if (len === 0) return this.appendPoint(point);
+
+		const xAcc = this.xAccessor;
+		const yAcc = this.yAccessor;
+
+		const oldRow = this.data[len - 1];
+		const oldY = yAcc(oldRow);
+		const newX = xAcc(point);
+		const newY = yAcc(point);
+
+		const s = this._stats;
+		const prevYMin = s.yMin;
+		const prevYMax = s.yMax;
+		const prevLastY = s.lastY;
+
+		this.data[len - 1] = point;
+
+		s.lastX = newX;
+		s.lastY = newY;
+
+		let needRescan = false;
+		if (oldY === s.yMin && newY > oldY) needRescan = true;
+		if (oldY === s.yMax && newY < oldY) needRescan = true;
+		if (newY < s.yMin) needRescan = true;
+		if (newY > s.yMax) needRescan = true;
+
+		if (needRescan) {
+			this._recalcStats(this.data);
+		} else {
+			if (newY < s.yMin) s.yMin = newY;
+			if (newY > s.yMax) s.yMax = newY;
+		}
+
+		const plane = this.plane;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = newX - this._windowSize;
+			this._trimTail(cutoff);
+		}
+
+		const changed =
+			prevYMin !== s.yMin ||
+			prevYMax !== s.yMax ||
+			prevLastY !== s.lastY;
+
+		this._cachedPath = null;
+		this._dataDirty = true;
+		this.update();
+
+		if (changed && plane && plane._onLayerStatsChanged) {
+			plane._onLayerStatsChanged(this);
+		}
+		if (plane && plane.update) plane.update();
+
+		this._emitLastPointUpdated();
 
 		return this;
 	}

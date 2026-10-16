@@ -107,7 +107,9 @@ export const CSS = {
 		horizontal: 'crosshair-h',
 		labelX: 'crosshair-label-x',
 		labelY: 'crosshair-label-y',
-		snapDot: 'crosshair-snap-dot'
+		snapGroup: 'crosshair-snap-group',
+		snapDot: 'crosshair-snap-dot',
+		snapRing: 'crosshair-snap-ring'
 	},
 
 	interaction: {

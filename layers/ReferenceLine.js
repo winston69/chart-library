@@ -38,6 +38,15 @@ export class ReferenceLine extends AnnotationLayer {
 		this.showValue = options.showValue !== undefined ? options.showValue : true;
 		this.labelFormat = options.labelFormat || ((v) => v.toFixed(4));
 
+		// ─── LABEL FONT ───
+		// Read once. Used to estimate the label's pixel width
+		// before the browser has laid it out (first frame after
+		// a text change). Matches the --ref-font-size custom
+		// property in ReferenceLine.css.
+		this.labelFontSize = options.labelFontSize !== undefined
+			? options.labelFontSize
+			: CSS.getNumber('--ref-font-size');
+
 		// ─── PULSE ───
 		this.pulse = options.pulse !== undefined ? options.pulse : false;
 		this.pulseRadius = options.pulseRadius !== undefined
@@ -370,7 +379,15 @@ export class ReferenceLine extends AnnotationLayer {
 		}
 
 		const labelOffset = 4;
-		const textLength = text.length * 6;
+
+		// Measure the label. If it hasn't been laid out yet
+		// (first render after a text change), fall back to an
+		// estimate based on character count and font size.
+		// Monospace character width is ~0.6 × font size.
+		let textLength = label.getComputedTextLength();
+		if (!textLength || textLength < 1) {
+			textLength = text.length * this.labelFontSize * 0.6;
+		}
 
 		let anchorX = xPos;
 		if (anchorX < plotLeft || anchorX > plotRight) {

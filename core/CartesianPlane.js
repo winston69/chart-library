@@ -62,7 +62,7 @@ export class CartesianPlane {
 			domain: o.xDomain || [0, 1],
 			range: [0, this.width],
 			type: o.xScaleType || 'time',
-			nice: true,
+			nice: false,        // ← change from true to false
 			space: 'cartesian'
 		});
 
@@ -75,8 +75,10 @@ export class CartesianPlane {
 		});
 
 		// ─── DOMAIN STRATEGY ───
-		this.domainStrategy = o.domainStrategy || 'static';
+		this.domainStrategy = o.domainStrategy || 'expanding';
 		this._windowSize = o.windowSize || this.width;
+		this.domainPadding = o.padding !== undefined ? o.padding : 0.10;
+		this._maxData = o.maxData || this._windowSize;
 		this.autoAdjustY = o.autoAdjustY !== undefined ? o.autoAdjustY : true;
 
 		// ─── CLIPPING ───
@@ -376,6 +378,37 @@ export class CartesianPlane {
 		this._windowDirty = true;
 		this._domainDirty = true;
 
+		// Layers trim based on maxData, not windowSize. The
+		// windowSize controls the sliding visible range only.
+		const trimSize = this.maxData;
+		const layers = this._layers;
+		for (const id in layers) {
+			const layer = layers[id].instance;
+			if (layer.isDataLayer && typeof layer.setWindowSize === 'function') {
+				layer.setWindowSize(trimSize);
+			}
+		}
+
+		this._requestUpdate();
+	}
+
+	// ─── MAX DATA ───
+	// Hard cap on retained data. Defaults to windowSize if not set.
+	// Layers trim beyond this; the domain's left edge is bounded by
+	// it under `expanding`.
+
+	get maxData() {
+		return this._maxData !== undefined ? this._maxData : this._windowSize;
+	}
+
+	set maxData(value) {
+		if (value === this._maxData) return;
+		if (!isFinite(value) || value <= 0) {
+			throw new Error('maxData must be a positive finite number');
+		}
+		this._maxData = value;
+		this._domainDirty = true;
+
 		const layers = this._layers;
 		for (const id in layers) {
 			const layer = layers[id].instance;
@@ -572,7 +605,7 @@ export class CartesianPlane {
 			this._addToYGroup(groupId, layer, height);
 			this._decimalsDirty = true;
 			if (typeof layer.setWindowSize === 'function') {
-				layer.setWindowSize(this._windowSize);
+				layer.setWindowSize(this.maxData);
 			}
 		}
 
@@ -1527,6 +1560,7 @@ export class CartesianPlane {
 
 		if (!hasData) { xMin = 0; xMax = 1; }
 
+
 		let xDomain;
 		switch (this.domainStrategy) {
 			case 'sliding': {
@@ -1536,10 +1570,22 @@ export class CartesianPlane {
 				break;
 			}
 			case 'expanding': {
-				const range = xMax - xMin || 1;
-				xDomain = [Math.max(0, xMin - range), xMax + range];
+				// Fit all data into the left (1 - padding) of the
+				// visible range. Right-padded so the newest point
+				// isn't jammed against the y-axis. Left-justified:
+				// xMin anchors the left edge.
+				const dataRange = xMax - xMin;
+				if (!isFinite(dataRange) || dataRange <= 0) {
+					xDomain = [xMax - 1, xMax];
+					break;
+				}
+				const padding = this.domainPadding;
+				const visibleRange = dataRange / (1 - padding);
+				const right = xMin + visibleRange;
+				xDomain = [xMin, right];
 				break;
 			}
+			case 'static':
 			default:
 				xDomain = this.xScale.domain;
 				break;

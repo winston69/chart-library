@@ -57,27 +57,6 @@ body {
 	background-color: var(--panel-bg);
 }
 
-/* ─── PRICE BAND OVERRIDES ─── */
-
-/* WAP is amber, not the layer's default green. */
-#wap-chart-group {
-	--line-color: #ffd43b;
-}
-
-#wap-area-group {
-	--area-color: #ffd43b;
-	--area-opacity: 0.12;
-}
-
-/* Ghosts are tinted to match their source layers. */
-#price-ghost-group {
-	--ghost-color: rgba(74, 222, 128, 0.35);
-}
-
-#wap-ghost-group {
-	--ghost-color: rgba(255, 212, 59, 0.35);
-}
-
 /* Bollinger envelope — purple family, three opacities. */
 #bb-mean-group {
 	--line-color: rgba(132, 94, 247, 0.7);
@@ -108,4 +87,20 @@ body {
 	--bar-down-color: #f43f5e;
 	--bar-up-opacity: 0.6;
 	--bar-down-opacity: 0.6;
+}
+
+/* ─── SMA / VWMA OVERRIDES ─── */
+
+/* SMA is pink/magenta — distinct from Bollinger purple and
+   VWMA orange. */
+#sma-line-group {
+	--line-color: #f783ac;
+	--line-width: 1px;
+}
+
+/* VWMA is warm orange — matches the volume band's accent
+   family but stands apart from the candle green. */
+#vwma-line-group {
+	--line-color: #ffa94d;
+	--line-width: 1px;
 }

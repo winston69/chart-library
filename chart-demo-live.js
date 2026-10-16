@@ -5,23 +5,23 @@
 //
 // Connects to the public <symbol>@trade WebSocket stream,
 // buckets trades into fixed-width candles, computes derived
-// indicators, and posts one row per bucket.
+// indicators, and posts the forming bucket to the main thread
+// on a 1 Hz cadence (or immediately when a bucket rolls over).
 //
 // Protocol (mirrors chart-demo-feed.js):
 //
 //   Main → Worker
-//     { type: 'config', symbol, stream, bucketMs, windowMs,
-//       eventTimeField, indicators }
+//     { type: 'config', symbol, stream, bucketMs, tickMs,
+//       windowMs, eventTimeField, indicators }
 //     { type: 'start' }
 //     { type: 'stop' }
 //     { type: 'reset' }
 //
 //   Worker → Main
-//     { type: 'seed', data: [rowData, ...] }
-//     { type: 'tick', data: rowData }
-//     { type: 'state', running: boolean, connected: boolean }
-//     { type: 'error', message: string }
-//
+//     { type: 'seed',  data: [row, ...] }
+//     { type: 'tick',  data: row }
+//     { type: 'state', running, connected }
+//     { type: 'error', message }
 // ──────────────────────────────────────────────────────────────
 
 import { createIndicatorSet } from './indicators.js';
@@ -32,52 +32,65 @@ const WS_URL = 'wss://wsapi.pro.coins.ph/openapi/quote/ws/v3';
 // ─── Defaults ───
 const DEFAULT_SYMBOL = 'BTCPHP';
 const DEFAULT_STREAM = 'trade';
-const DEFAULT_BUCKET_MS = 60000;
-const DEFAULT_WINDOW_MS = 900000 * 4 * 24;
+const DEFAULT_BUCKET_MS = 900000;       // 15 minutes
+const DEFAULT_TICK_MS = 1000;           // 1 Hz
+const DEFAULT_WINDOW_MS = 86400000;     // 24 hours
 const DEFAULT_EVENT_TIME_FIELD = 'eventTime';
-const DEFAULT_INDICATORS = ['macd', 'rsi', 'bollinger'];
+
+const DEFAULT_INDICATORS = [
+	'macd',
+	'rsi',
+	'bollinger',
+	{ name: 'sma', source: 'close', periodMs: 3600000 },
+	{ name: 'vwma', source: 'typical', periodMs: 3600000 }
+];
 
 // ─── Config ───
 let symbol = DEFAULT_SYMBOL;
 let stream = DEFAULT_STREAM;
 let bucketMs = DEFAULT_BUCKET_MS;
+let tickMs = DEFAULT_TICK_MS;
 let windowMs = DEFAULT_WINDOW_MS;
 let eventTimeField = DEFAULT_EVENT_TIME_FIELD;
-let indicators = createIndicatorSet(DEFAULT_INDICATORS);
+let indicatorEntries = DEFAULT_INDICATORS.slice();
+let indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
 // ─── Runtime state ───
 let ws = null;
 let running = false;
 let connected = false;
-let seeded = false;
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 const reconnectBaseMs = 1000;
 const reconnectMaxMs = 30000;
 
 // ─── Bucket state ───
-let bucket = null;
-let flushTimer = null;
+let currentBucket = null;
+let bucketStartSnap = null;
+let lastPrice = null;
+
+// ─── Outbound tick throttle ───
+let lastTickAt = 0;
 
 // ─── History ───
-// Retained so the seed can rebuild a window-relative history when
-// the connection drops and reconnects. Also used for trimming.
+// Closed bucket rows. Retained for window trimming and so the
+// seed can be rebuilt on reconnect.
 let data = [];
 
 // ──────────────────────────────────────────────────────────────
-// Utilities
+// Helpers
 // ──────────────────────────────────────────────────────────────
 
 function postState() {
-	self.postMessage({
-		type: 'state',
-		running,
-		connected
-	});
+	self.postMessage({ type: 'state', running, connected });
 }
 
 function postError(message) {
 	self.postMessage({ type: 'error', message });
+}
+
+function floorToBucket(ms) {
+	return Math.floor(ms / bucketMs) * bucketMs;
 }
 
 function trimToWindow(now) {
@@ -85,7 +98,7 @@ function trimToWindow(now) {
 	let firstKeep = 0;
 	while (
 		firstKeep < data.length &&
-		data[firstKeep][eventTimeField] < cutoff
+		data[firstKeep].openTime < cutoff
 	) {
 		firstKeep++;
 	}
@@ -96,80 +109,79 @@ function trimToWindow(now) {
 // Bucket management
 // ──────────────────────────────────────────────────────────────
 
-function makeBucket(openTime) {
-	return {
-		openTime,
-		closeTime: openTime + bucketMs,
-		open: null,
-		high: -Infinity,
-		low: Infinity,
-		close: null,
-		volume: 0,
-		count: 0
-	};
-}
-
-function applyTradeToBucket(b, price, quantity) {
-	if (b.open === null) {
-		b.open = price;
-		b.high = price;
-		b.low = price;
-	} else {
-		if (price > b.high) b.high = price;
-		if (price < b.low) b.low = price;
+function openBucket(openTime, price, time) {
+	if (currentBucket && currentBucket.lastPrice !== null) {
+		indicators.compute({ lastPrice: currentBucket.lastPrice });
 	}
-	b.close = price;
-	b.volume += quantity;
-	b.count++;
-}
 
-function bucketToRow(b) {
-	if (b.count === 0) return null;
+	const snap = indicators.snapshot();
 
 	const row = {
-		lastPrice: b.close,
-		weightedAvgPrice: b.close,
-		prevClosePrice: b.open,
-		openPrice: b.open,
-		highPrice: b.high,
-		lowPrice: b.low,
-		openTime: b.openTime,
-		closeTime: b.closeTime,
-		eventTime: b.closeTime,
-		volume: b.volume
+		lastPrice: price,
+		weightedAvgPrice: price,
+		prevClosePrice: price,
+		openPrice: price,
+		highPrice: price,
+		lowPrice: price,
+		openTime,
+		closeTime: openTime + bucketMs,
+		[eventTimeField]: time,
+		volume: 0,
+		notional: 0
 	};
 
-	// Merge derived fields.
-	Object.assign(row, indicators.compute(row));
-
+	currentBucket = row;
+	bucketStartSnap = snap;
 	return row;
 }
 
-function closeBucketAndEmit() {
-	if (!bucket || bucket.count === 0) {
-		bucket = null;
-		return null;
+function foldTrade(row, price, quantity, time) {
+	if (row.volume === 0) {
+		row.openPrice = price;
+		row.highPrice = price;
+		row.lowPrice = price;
 	}
-	const row = bucketToRow(bucket);
-	bucket = null;
-	return row;
+	row.lastPrice = price;
+	if (price > row.highPrice) row.highPrice = price;
+	if (price < row.lowPrice) row.lowPrice = price;
+	row.volume += quantity;
+	row.notional += price * quantity;
+	row[eventTimeField] = time;
+
+	// Running WAP approximation.
+	const prevNotional = row.weightedAvgPrice * (row.volume - quantity);
+	row.weightedAvgPrice = row.volume > 0
+		? (prevNotional + price * quantity) / row.volume
+		: price;
+
+	indicators.restore(bucketStartSnap);
+	const fields = indicators.compute(row);
+	Object.assign(row, fields);
+}
+
+/**
+ * Close the current bucket and push it into history. Called on a
+ * bucket boundary.
+ */
+function finalizeBucket() {
+	if (currentBucket && currentBucket.volume > 0) {
+		data.push(currentBucket);
+		trimToWindow(currentBucket[eventTimeField]);
+	}
+	currentBucket = null;
 }
 
 // ──────────────────────────────────────────────────────────────
 // Seed
 // ──────────────────────────────────────────────────────────────
-// Builds a synthetic history anchored to a price. The exchange
-// does not expose historical trade data over HTTP with CORS, so
-// the chart starts empty and warms up on live trades. A synthetic
-// seed gives the chart a populated window on connect.
-//
-// The seed count is derived from windowMs / bucketMs so it fits
-// the visible window exactly.
+// The exchange does not expose historical trade data over HTTP
+// with CORS, so the chart starts with a synthetic seed anchored
+// to the first live trade price. Live buckets append on top.
 
 function buildSeed(anchorPrice) {
 	const count = Math.max(2, Math.round(windowMs / bucketMs));
 	const now = Date.now();
-	const startTime = now - (count - 1) * bucketMs;
+	const startTime = floorToBucket(now) - count * bucketMs;
 
 	// Random walk backward from the anchor.
 	let price = anchorPrice;
@@ -181,16 +193,16 @@ function buildSeed(anchorPrice) {
 	}
 
 	// Guard against runaway drift.
-	const drift = prices[0] / anchorPrice;
-	if (drift < 0.5 || drift > 2) {
+	const ratio = prices[0] / anchorPrice;
+	if (ratio < 0.5 || ratio > 2) {
 		for (let i = 0; i < count; i++) prices[i] = anchorPrice;
 	}
 
-	indicators.reset();
+	indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
 	const rows = new Array(count);
 	for (let i = 0; i < count; i++) {
-		const eventTime = startTime + i * bucketMs;
+		const openTime = startTime + i * bucketMs;
 		const close = prices[i];
 		const prevClose = i === 0 ? close : prices[i - 1];
 		const openPrice = prevClose;
@@ -198,6 +210,7 @@ function buildSeed(anchorPrice) {
 		const highPrice = Math.max(openPrice, close) + Math.random() * wick;
 		const lowPrice = Math.min(openPrice, close) - Math.random() * wick;
 		const volume = Math.round(500 + Math.random() * 1500);
+		const notional = close * volume;
 
 		const row = {
 			lastPrice: close,
@@ -206,10 +219,11 @@ function buildSeed(anchorPrice) {
 			openPrice,
 			highPrice,
 			lowPrice,
-			openTime: eventTime - bucketMs,
-			closeTime: eventTime,
-			eventTime,
-			volume
+			openTime,
+			closeTime: openTime + bucketMs,
+			[eventTimeField]: openTime + bucketMs - 1,
+			volume,
+			notional
 		};
 
 		Object.assign(row, indicators.compute(row));
@@ -220,43 +234,23 @@ function buildSeed(anchorPrice) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Flush timer
+// Outbound tick
 // ──────────────────────────────────────────────────────────────
-// Emits the current bucket at the end of each interval, even if
-// no trades arrived in it. Keeps the chart ticking during quiet
-// periods.
 
-function startFlushTimer() {
-	if (flushTimer !== null) return;
-	flushTimer = setInterval(() => {
-		const now = Date.now();
-		if (!bucket) {
-			// No bucket open. Start one aligned to now.
-			if (seeded) {
-				const openTime = Math.floor(now / bucketMs) * bucketMs;
-				bucket = makeBucket(openTime);
-			}
-			return;
-		}
-		if (now >= bucket.closeTime) {
-			const row = closeBucketAndEmit();
-			if (row) {
-				data.push(row);
-				trimToWindow(row.eventTime);
-				self.postMessage({ type: 'tick', data: row });
-			}
-			if (running) {
-				const openTime = Math.floor(now / bucketMs) * bucketMs;
-				bucket = makeBucket(openTime);
-			}
-		}
-	}, Math.max(100, Math.floor(bucketMs / 2)));
+function emitTick(isNewBucket) {
+	if (!currentBucket) return;
+	self.postMessage({
+		type: 'tick',
+		data: { ...currentBucket },
+		isNewBucket: !!isNewBucket
+	});
+	lastTickAt = Date.now();
 }
 
-function stopFlushTimer() {
-	if (flushTimer !== null) {
-		clearInterval(flushTimer);
-		flushTimer = null;
+function maybeEmitTick(force) {
+	const now = Date.now();
+	if (force || now - lastTickAt >= tickMs) {
+		emitTick(force);
 	}
 }
 
@@ -277,7 +271,6 @@ function sendSubscribe() {
 function connect() {
 	if (ws) return;
 
-	const streamName = `${symbol.toLowerCase()}@${stream}`;
 	ws = new WebSocket(WS_URL);
 
 	ws.onopen = () => {
@@ -310,34 +303,34 @@ function connect() {
 
 		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)) return;
 
-		// First trade: emit a seed, then start the current bucket.
-		if (!seeded) {
-			seeded = true;
+		// First trade: emit the seed, then start the current bucket.
+		if (lastPrice === null) {
+			lastPrice = price;
 			const seedRows = buildSeed(price);
 			data = seedRows.slice();
 			trimToWindow(seedRows[seedRows.length - 1][eventTimeField]);
 			self.postMessage({ type: 'seed', data: seedRows });
 
-			const openTime = Math.floor(tradeTime / bucketMs) * bucketMs;
-			bucket = makeBucket(openTime);
+			const openTime = floorToBucket(tradeTime);
+			openBucket(openTime, price, tradeTime);
 		}
 
-		const bucketOpenTime = Math.floor(tradeTime / bucketMs) * bucketMs;
+		lastPrice = price;
 
-		if (!bucket) {
-			bucket = makeBucket(bucketOpenTime);
-		} else if (bucketOpenTime > bucket.openTime) {
-			// Emit the closed bucket.
-			const row = closeBucketAndEmit();
-			if (row) {
-				data.push(row);
-				trimToWindow(row.eventTime);
-				self.postMessage({ type: 'tick', data: row });
-			}
-			bucket = makeBucket(bucketOpenTime);
+		const tradeBucket = floorToBucket(tradeTime);
+		let isNewBucket = false;
+
+		if (!currentBucket) {
+			openBucket(tradeBucket, price, tradeTime);
+			isNewBucket = true;
+		} else if (tradeBucket > currentBucket.openTime) {
+			finalizeBucket();
+			openBucket(tradeBucket, price, tradeTime);
+			isNewBucket = true;
 		}
 
-		applyTradeToBucket(bucket, price, quantity);
+		foldTrade(currentBucket, price, quantity, tradeTime);
+		maybeEmitTick(isNewBucket);
 	};
 
 	ws.onerror = () => {
@@ -349,14 +342,10 @@ function connect() {
 		connected = false;
 		postState();
 
-		// Flush any pending bucket before closing.
-		if (bucket && bucket.count > 0) {
-			const row = closeBucketAndEmit();
-			if (row) {
-				data.push(row);
-				trimToWindow(row.eventTime);
-				self.postMessage({ type: 'tick', data: row });
-			}
+		// Flush any pending bucket.
+		if (currentBucket && currentBucket.volume > 0) {
+			finalizeBucket();
+			emitTick(true);
 		}
 
 		if (!running) return;
@@ -405,13 +394,16 @@ function handleConfig(msg) {
 		bucketMs = msg.bucketMs;
 		reconfigure = true;
 	}
+	if (isFinite(msg.tickMs) && msg.tickMs > 0) tickMs = msg.tickMs;
 	if (isFinite(msg.windowMs) && msg.windowMs > 0) windowMs = msg.windowMs;
 	if (typeof msg.eventTimeField === 'string' && msg.eventTimeField) {
 		eventTimeField = msg.eventTimeField;
 	}
 	if (Array.isArray(msg.indicators) && msg.indicators.length > 0) {
-		indicators = createIndicatorSet(msg.indicators);
+		indicatorEntries = msg.indicators.slice();
 	}
+
+	indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
 	// If a connection-relevant option changed while running,
 	// disconnect and reconnect with the new parameters.
@@ -424,40 +416,36 @@ function handleConfig(msg) {
 function start() {
 	if (running) return;
 	running = true;
-	seeded = false;
+
+	currentBucket = null;
+	bucketStartSnap = null;
+	lastPrice = null;
+	lastTickAt = 0;
 	data = [];
-	bucket = null;
-	indicators.reset();
+	indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
 	postState();
 	connect();
-	startFlushTimer();
 }
 
 function stop() {
 	if (!running) return;
 	running = false;
 
-	stopFlushTimer();
 	disconnect();
 
 	// Flush any pending bucket.
-	if (bucket && bucket.count > 0) {
-		const row = closeBucketAndEmit();
-		if (row) {
-			data.push(row);
-			self.postMessage({ type: 'tick', data: row });
-		}
+	if (currentBucket && currentBucket.volume > 0) {
+		finalizeBucket();
+		emitTick(true);
 	}
-	bucket = null;
+	currentBucket = null;
+	bucketStartSnap = null;
 
 	postState();
 }
 
 function reset() {
-	// Stop any running session, clear history, and reseed on the
-	// next trade. The seed is emitted on the first trade after
-	// reconnect, so `start()` handles it.
 	const wasRunning = running;
 	stop();
 	if (wasRunning) start();
@@ -471,24 +459,24 @@ self.onmessage = (evt) => {
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
 
-	switch (msg.type) {
-		case 'config': {
-			handleConfig(msg);
-			break;
+	try {
+		switch (msg.type) {
+			case 'config':
+				handleConfig(msg);
+				break;
+			case 'start':
+				start();
+				break;
+			case 'stop':
+				stop();
+				break;
+			case 'reset':
+				reset();
+				break;
+			default:
+				break;
 		}
-		case 'start': {
-			start();
-			break;
-		}
-		case 'stop': {
-			stop();
-			break;
-		}
-		case 'reset': {
-			reset();
-			break;
-		}
-		default:
-			break;
+	} catch (err) {
+		self.postMessage({ type: 'error', message: String(err && err.message || err) });
 	}
 };

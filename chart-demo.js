@@ -1,15 +1,21 @@
 // ──────────────────────────────────────────────────────────────
 // chart-demo.js
 //
-// Demo wiring for a three-band chart:
-//   - Top:    MACD (histogram + line + signal)
-//   - Middle: Price (Bollinger + WAP + candles + ghosts)
-//   - Bottom: Volume (signed bars)
-//   - Shared x-axis with sliding window
-//   - Reference line, crosshair, tooltip
-//   - Card strip: Legend, OHLC, Info
-//   - Toolbar: mode, layer toggles, card toggles, controls
-//   - Live data from a Web Worker (demo-feed.js)
+// Demo wiring. Four bands, bottom to top:
+//   volume, rsi, price, macd
+//
+// Band stack (bottom → top):
+//   volume  — Volume indicator (BarChart)
+//   rsi     — RSI indicator (line + 70/30 levels)
+//   price   — candles + Bollinger + SMA + VWMA
+//   macd    — MACD indicator (histogram + line + signal)
+//
+// All indicators are classes extending BaseIndicator. They own
+// their layers and expose a uniform dispatch contract:
+//   appendOrUpdate(row, keyFn), setData(rows), remove()
+//
+// The feed worker computes derived fields (macd, rsi, bb*, sma,
+// vwma) from raw trades; the main thread only renders.
 // ──────────────────────────────────────────────────────────────
 
 // Core
@@ -24,14 +30,16 @@ import { YAxis } from './axes/YAxis.js';
 import { Line } from './layers/Line.js';
 import { Area } from './layers/Area.js';
 import { GhostLine } from './layers/GhostLine.js';
-import { BarChart } from './layers/BarChart.js';
 import { CandleStick } from './layers/CandleStick.js';
 import { ReferenceLine } from './layers/ReferenceLine.js';
 
 // Indicators
-import { createMACD } from './indicators/MACD.js';
-import { createBollinger } from './indicators/Bollinger.js';
-import { createRSI } from './indicators/RSI.js';
+import { MACD } from './indicators/MACD.js';
+import { RSI } from './indicators/RSI.js';
+import { Bollinger } from './indicators/Bollinger.js';
+import { SMA } from './indicators/SMA.js';
+import { VWMA } from './indicators/VWMA.js';
+import { Volume } from './indicators/Volume.js';
 
 // Interaction
 import { ChartSelection } from './interaction/ChartSelection.js';
@@ -49,34 +57,62 @@ import { Button } from './ui/Button.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
-// CONSTANTS
+// ─── CONSTANTS ───
 
-const WINDOW_MS = 900000;       // 15-minute sliding window
-const VISUAL_UPDATE_MS = 60000;  // tick cadence
+// ─── DECIMAL PRECISION ───
+// Temporary. Will be sourced from the exchange's symbol
+// metadata once the live symbol selector lands. Until then,
+// every layer that displays or formats numeric values reads
+// from here so there's one place to change.
+const SYMBOL_DECIMALS = 2;
 
-// Band heights (top → bottom). Sum to 1.
+const BUCKET_MS = 900000;        // 15-minute candles
+const WINDOW_MS = 86400000;      // 24-hour visible window
+const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
+const PERIOD_MS = 3600000;       // 1-hour rolling window for SMA / VWMA
+
 const BAND_HEIGHTS = {
 	macd: 0.20,
 	price: 0.45,
 	rsi: 0.15,
-	volume: 0.20
+	volume: 0.15
 };
 
-// PLANE
+const INDICATORS = [
+	'macd',
+	'rsi',
+	'bollinger',
+	{ name: 'sma', source: 'close', periodMs: PERIOD_MS },
+	{ name: 'vwma', source: 'exact', periodMs: PERIOD_MS }
+];
+
+// ─── BUCKET KEY ───
+// A row's identity within a candle. Two rows with the same key
+// belong to the same bucket; the second replaces the first in
+// place.
+function bucketKey(row) {
+	return Math.floor((row.openTime || 0) / BUCKET_MS);
+}
+
+const xAcc = d => d.openTime;
+
+// ─── PLANE ───
 
 const container = document.body;
 
 const plane = new CartesianPlane({
 	id: 'main-plane',
-	domainStrategy: 'sliding', //'sliding',
-	windowSize: WINDOW_MS,
+	domainStrategy: 'expanding',
+	padding: 0.05,
+	windowSize: WINDOW_MS,  // 24h visible
+	maxData: 7 * 86400000,	// 7 days retained, regardless of window
 	xScaleType: 'time',
 	autoAdjustY: true
 });
 
 plane.mount(container);
 
-// TOOLTIP
+// ─── TOOLTIP ───
 
 const tooltip = new ToolTip({
 	id: 'main-tooltip',
@@ -85,111 +121,89 @@ const tooltip = new ToolTip({
 });
 tooltip.render();
 
-// SELECTION
+// ─── SELECTION ───
 
 const chartSelection = new ChartSelection({ plane });
 
-// LAYERS
+// ─── PRICE LAYERS (standalone, not indicators) ───
 
 const priceChart = new CandleStick({
 	id: 'price-candles',
 	name: 'Price',
-	decimals: 7,
+	decimals: SYMBOL_DECIMALS,
 	data: [],
-	xAccessor: d => d.eventTime,
+	xAccessor: xAcc,
 	openAccessor: d => d.openPrice,
 	highAccessor: d => d.highPrice,
 	lowAccessor: d => d.lowPrice,
 	closeAccessor: d => d.lastPrice,
-	candleWidthFactor: 0.7
+	candleWidthFactor: 0.7,
+	trimTail: true
 });
 
-const wapChart = new Line({
-	id: 'wap-chart',
-	name: 'WAP',
-	decimals: 7,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.weightedAvgPrice
-});
 
-const wapArea = new Area({
-	id: 'wap-area',
-	name: 'WAP Area',
-	plane,
-	sourceLayer: wapChart,
-	baseline: 'dataMin'
-});
-
-// const priceGhost = new GhostLine({
-// 	id: 'price-ghost',
-// 	plane,
-// 	sourceLayer: priceChart
-// });
-
-// const wapGhost = new GhostLine({
-// 	id: 'wap-ghost',
-// 	plane,
-// 	sourceLayer: wapChart
-// });
-
-// INDICATORS — VOLUME, BOLLINGER AND MACD
-
-const volumeChart = new BarChart({
-	id: 'volume-chart',
-	name: 'Volume',
-	decimals: 0,
-	data: [],
-	xAccessor: d => d.eventTime,
-	yAccessor: d => d.volume,
-	openAccessor: d => d.openPrice,
-	closeAccessor: d => d.lastPrice,
-	baseline: 'zero',
-	barWidthFactor: 0.7
-});
-
-// LAYER REGISTRATION
-// Within each band, registration order determines paint order:
-// earlier layers sit behind later ones.
+// ─── INDICATORS ───
+// Registered bottom-first so _yGroupOrder stacks them top-down.
+// Order: volume, rsi, price, macd.
 
 // 1. Volume — bottom band
-plane.addLayer(volumeChart, { yGroup: 'volume-group', height: BAND_HEIGHTS.volume });
+const volume = new Volume({
+	plane,
+	height: BAND_HEIGHTS.volume,
+	xAccessor: xAcc,
+	trimTail: true
+});
+
+plane.addLayer(priceChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 
 // 2. RSI — above volume
-const rsi = createRSI({
+const rsi = new RSI({
 	plane,
-	yGroup: 'rsi-group',
 	height: BAND_HEIGHTS.rsi,
-	decimals: 2,
-	idPrefix: 'rsi'
+	decimals: SYMBOL_DECIMALS,
+	xAccessor: xAcc,
+	trimTail: true
 });
 
-// 3. Price + Bollinger + WAP — middle band
-// plane.addLayer(priceGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-// plane.addLayer(wapGhost, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+// 3. Price band overlays — Bollinger, SMA, VWMA all live in
+// price-group, behind and in front of the candles as configured.
+// Registration order matters: overlays that should render behind
+// the candles register first.
 
-const bollinger = createBollinger({
+const bollinger = new Bollinger({
 	plane,
-	yGroup: 'price-group',
 	height: BAND_HEIGHTS.price,
-	decimals: 7,
-	idPrefix: 'bb'
+	decimals: SYMBOL_DECIMALS,
+	xAccessor: xAcc,
+	trimTail: true
 });
 
-plane.addLayer(wapArea, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(priceChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-plane.addLayer(wapChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
+const sma = new SMA({
+	plane,
+	height: BAND_HEIGHTS.price,
+	decimals: SYMBOL_DECIMALS,
+	xAccessor: xAcc,
+	trimTail: true
+});
+
+const vwma = new VWMA({
+	plane,
+	height: BAND_HEIGHTS.price,
+	decimals: SYMBOL_DECIMALS,
+	xAccessor: xAcc,
+	trimTail: true
+});
 
 // 4. MACD — top band
-const macd = createMACD({
+const macd = new MACD({
 	plane,
-	yGroup: 'macd-group',
 	height: BAND_HEIGHTS.macd,
-	decimals: 7,
-	idPrefix: 'macd'
+	decimals: SYMBOL_DECIMALS + 4,
+	xAccessor: xAcc,
+	trimTail: true
 });
 
-// AXES
+// ─── AXES ───
 
 const timeFormat = new Intl.DateTimeFormat("en-US", {
 	hour: '2-digit',
@@ -233,7 +247,7 @@ const volumeYAxis = new YAxis({
 	label: 'Volume',
 	orientation: 'right',
 	positionIntent: 'outside',
-	scale: plane.getYScaleForChart(volumeChart),
+	scale: plane.getYScaleForChart(volume.bars),
 	bandGroupId: 'volume-group',
 	showGrid: false,
 	showTicks: true,
@@ -271,13 +285,14 @@ const rsiYAxis = new YAxis({
 	tickCount: 4,
 	decimals: 0
 });
+
 plane.addLayer(xAxis);
 plane.addLayer(volumeYAxis);
 plane.addLayer(rsiYAxis);
 plane.addLayer(priceYAxis);
 plane.addLayer(macdYAxis);
 
-// REFERENCE LINE
+// ─── REFERENCE LINE ───
 
 const referenceLine = new ReferenceLine({
 	id: 'ref-line',
@@ -286,13 +301,13 @@ const referenceLine = new ReferenceLine({
 	valueAccessor: (stats) => stats.lastY,
 	showLabel: false,
 	showValue: true,
-	labelFormat: (v) => v.toFixed(4),
+	labelFormat: (v) => v.toFixed(SYMBOL_DECIMALS),
 	pulse: true
 });
 
 plane.addLayer(referenceLine);
 
-// CROSSHAIR
+// ─── CROSSHAIR ───
 
 const crosshair = new CrosshairLayer({
 	id: 'crosshair',
@@ -305,7 +320,7 @@ const crosshair = new CrosshairLayer({
 	}
 });
 
-// CARD STRIP
+// ─── CARD STRIP ───
 
 const cardStrip = new CardStrip({
 	id: 'main-card-strip',
@@ -314,7 +329,7 @@ const cardStrip = new CardStrip({
 	defaultCardWidth: 96
 });
 
-// INTERACTION
+// ─── INTERACTION ───
 
 const interaction = new InteractionLayer({
 	id: 'interaction',
@@ -340,22 +355,23 @@ const interaction = new InteractionLayer({
 
 plane.addLayer(interaction);
 
-// CARDS
+// ─── CARDS ───
 
 const legendCard = new Legend({
 	id: 'main-legend',
 	title: '🎯 Price Update!!',
-	width: 120,
+	width: 140,
 	plane,
 	selection: chartSelection,
-	valueFormat: (v) => v.toFixed(7),
+	valueFormat: (v) => v.toFixed(SYMBOL_DECIMALS),
 	autoDetect: false,
 	items: [
-		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(7) },
-		{ label: 'WAP', layer: wapChart, color: '#ffd43b', format: v => v.toFixed(7) },
-		{ label: 'Volume', layer: volumeChart, color: '#4dabf7', format: v => v.toFixed(0) },
-		{ label: 'MACD', layer: macd.macdLine, color: '#22d3ee', format: v => v.toFixed(7) },
-		{ label: 'BB Mean', layer: bollinger.meanLine, color: '#845ef7', format: v => v.toFixed(7) }
+		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'SMA', layer: sma.line, color: '#f783ac', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'VWMA', layer: vwma.line, color: '#ffa94d', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'BB Mean', layer: bollinger.mean, color: '#845ef7', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'MACD', layer: macd.line, color: '#22d3ee', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(0) }
 	]
 });
 cardStrip.addCard(legendCard);
@@ -367,7 +383,7 @@ const ohlcCard = new OHLCCard({
 	crosshair,
 	title: 'Price',
 	width: 96,
-	decimals: 7
+	decimals: SYMBOL_DECIMALS
 });
 cardStrip.addCard(ohlcCard);
 
@@ -393,9 +409,14 @@ crosshair.onMove = (payload) => {
 	ohlcCard.onCrosshairMove(payload);
 };
 
-// DATA FEED
+// ─── HANDLE LIST ───
+// Every indicator handle, plus the standalone price layer. Used
+// by the tick dispatcher and by clearAllCharts. Order doesn't
+// matter here — dispatch is per-handle.
 
-// DATA FEEDS — SIMULATED + LIVE
+const handles = [priceChart, volume, rsi, bollinger, sma, vwma, macd];
+
+// ─── DATA FEEDS ───
 
 const feed = new Worker('./chart-demo-feed.js', { type: 'module' });
 const liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
@@ -403,31 +424,17 @@ const liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
 let feedRunning = false;
 let liveRunning = false;
 
-// Both workers post the same message shapes:
-//   { type: 'seed',  data: [row, ...] }
-//   { type: 'tick',  data: row }
-//   { type: 'state', running, connected }
-//   { type: 'error', message }
-
 function applySeed(rows) {
-	priceChart.setData(rows);
-	wapChart.setData(rows);
-	bollinger.setData(rows);
-	rsi.setData(rows);
-	volumeChart.setData(rows);
-	macd.setData(rows);
+	for (const h of handles) h.setData(rows);
 	plane.update();
 }
 
 function applyTick(row) {
-	priceChart.appendPoint(row);
-	wapChart.appendPoint(row);
-	bollinger.appendPoint(row);
-	rsi.appendPoint(row);
-	volumeChart.appendPoint(row);
-	macd.appendPoint(row);
+	for (const h of handles) h.appendOrUpdate(row, bucketKey);
 	plane.update();
 }
+
+// ─── SIMULATED FEED WIRING ───
 
 feed.onmessage = (evt) => {
 	const msg = evt.data;
@@ -455,15 +462,17 @@ feed.onerror = (err) => {
 	console.error('[DataFeed] worker error:', err.message || err);
 };
 
-// Configure both feeds.
 feed.postMessage({
 	type: 'config',
-	intervalMs: VISUAL_UPDATE_MS,
+	bucketMs: BUCKET_MS,
+	tickMs: VISUAL_UPDATE_MS,
 	windowMs: WINDOW_MS,
-	eventTimeField: 'eventTime'
+	eventTimeField: 'eventTime',
+	indicators: INDICATORS
 });
 feed.postMessage({ type: 'seed' });
 
+// ─── LIVE FEED WIRING ───
 
 liveWorker.onmessage = (evt) => {
 	const msg = evt.data;
@@ -478,7 +487,6 @@ liveWorker.onmessage = (evt) => {
 			break;
 		case 'state':
 			liveRunning = msg.running;
-			// The button reflects both running and connected.
 			liveButton.setSelected(msg.running);
 			liveButton.setIcon(msg.running ? 'stop' : 'play');
 			liveButton.setTooltip(
@@ -497,18 +505,18 @@ liveWorker.onerror = (err) => {
 	console.error('[LiveFeed] worker error:', err.message || err);
 };
 
-
 liveWorker.postMessage({
 	type: 'config',
 	symbol: 'BTCPHP',
 	stream: 'trade',
-	bucketMs: 60000,
+	bucketMs: BUCKET_MS,
+	tickMs: VISUAL_UPDATE_MS,
 	windowMs: WINDOW_MS,
 	eventTimeField: 'eventTime',
-	indicators: ['macd', 'rsi', 'bollinger']
+	indicators: INDICATORS
 });
 
-// TOOLBAR
+// ─── TOOLBAR ───
 
 const toolbar = new ToolBar({
 	id: 'main-toolbar',
@@ -535,10 +543,6 @@ function cardToggleButton({ id, icon, tooltip, card }) {
 	return btn;
 }
 
-// Note: layerToggleButton as written above needs the button instance
-// to update its own selection state. Rewriting it to create and return
-// the button, then attach the click via the returned instance, is
-// cleaner. The version below is the one to use.
 function makeLayerToggle({ id, icon, tooltip, variant = 'secondary', layer }) {
 	const btn = new Button({
 		id,
@@ -707,15 +711,6 @@ const autoButton = new Button({
 	onClick: () => toggleAuto()
 });
 
-const strategyButton = new Button({
-	id: 'ctrl-strategy',
-	icon: 'strategy',
-	size: 'sm',
-	variant: 'success',
-	tooltip: 'Cycle domain strategy',
-	onClick: () => cycleStrategy()
-});
-
 const liveButton = new Button({
 	id: 'toggle-live',
 	icon: 'play',
@@ -727,19 +722,41 @@ const liveButton = new Button({
 		clearAllCharts();
 
 		if (liveRunning) {
-			// Stop live worker, restart the simulated feed.
 			liveWorker.postMessage({ type: 'stop' });
 			feed.postMessage({ type: 'reset' });
 		} else {
-			// Stop simulated feed, start the live worker.
 			feed.postMessage({ type: 'stop' });
 			feedRunning = false;
 			autoButton.setIcon('play');
 			autoButton.setTooltip('Auto-append');
 			liveWorker.postMessage({ type: 'start' });
 		}
-		// The button's visual state is updated from the worker's
-		// `state` messages, not here. See liveWorker.onmessage.
+	}
+});
+
+const MAX_DATA_OPTIONS = [
+	{ ms: 1 * 86400000, label: '1d' },
+	{ ms: 7 * 86400000, label: '7d' },
+	{ ms: 30 * 86400000, label: '30d' },
+	{ ms: 90 * 86400000, label: '90d' }
+];
+let maxDataIndex = 1;    // 7d default
+plane.maxData = MAX_DATA_OPTIONS[maxDataIndex].ms;
+
+const historyButton = new Button({
+	id: 'ctrl-history',
+	icon: 'strategy',
+	label: MAX_DATA_OPTIONS[maxDataIndex].label,
+	size: 'sm',
+	variant: 'success',
+	tooltip: `History: ${MAX_DATA_OPTIONS[maxDataIndex].label}`,
+	onClick: () => {
+		maxDataIndex = (maxDataIndex + 1) % MAX_DATA_OPTIONS.length;
+		const opt = MAX_DATA_OPTIONS[maxDataIndex];
+		plane.maxData = opt.ms;
+		historyButton.setLabel(opt.label);
+		historyButton.setTooltip(`History: ${opt.label}`);
+		plane.update();
 	}
 });
 
@@ -761,7 +778,6 @@ toolbar.addItem(addPointButton);
 toolbar.addItem(addBatchButton);
 toolbar.addItem(resetChartsButton);
 toolbar.addItem(autoButton);
-toolbar.addItem(strategyButton);
 
 toolbar.addItem(liveButton);
 
@@ -770,19 +786,14 @@ plane.addLayer(cardStrip);
 
 plane.update();
 
-// DATA MUTATION
+// ─── DATA MUTATION ───
 
 function appendPoint() {
 	feed.postMessage({ type: 'tick' });
 }
 
 function clearAllCharts() {
-	priceChart.setData([]);
-	wapChart.setData([]);
-	bollinger.setData([]);
-	rsi.setData([]);
-	volumeChart.setData([]);
-	macd.setData([]);
+	for (const h of handles) h.setData([]);
 	plane.update();
 }
 
@@ -794,10 +805,7 @@ function resetCharts() {
 	autoButton.setTooltip('Auto-append');
 }
 
-// DEMO CONTROLS
-
-let strategyIndex = 0;
-const strategies = ['sliding', 'expanding', 'static'];
+// ─── DEMO CONTROLS ───
 
 function toggleAuto() {
 	if (feedRunning) {
@@ -813,15 +821,7 @@ function toggleAuto() {
 	}
 }
 
-function cycleStrategy() {
-	strategyIndex = (strategyIndex + 1) % strategies.length;
-	const s = strategies[strategyIndex];
-	plane.domainStrategy = s;
-	strategyButton.setTooltip(`Strategy: ${s}`);
-	plane.update();
-}
-
-// KEYBOARD SHORTCUTS
+// ─── KEYBOARD SHORTCUTS ───
 
 document.addEventListener('keydown', (e) => {
 	if (e.key === ' ' || e.key === 'Space') {
@@ -830,6 +830,4 @@ document.addEventListener('keydown', (e) => {
 	}
 	if (e.key === 'a' || e.key === 'A') appendPoint();
 	if (e.key === 'r' || e.key === 'R') resetCharts();
-	if (e.key === 's' || e.key === 'S') cycleStrategy();
 });
-

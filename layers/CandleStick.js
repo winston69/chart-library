@@ -29,7 +29,8 @@ export class CandleStick extends ChartLayer {
 			data: options.data,
 			xAccessor: options.xAccessor,
 			yAccessor: options.closeAccessor || options.yAccessor,
-			decimals: options.decimals
+			decimals: options.decimals,
+			trimTail: options.trimTail
 		});
 
 		// OHLC accessors
@@ -429,8 +430,8 @@ export class CandleStick extends ChartLayer {
 		}
 
 		const plane = this.plane;
-		if (plane && plane.windowSize) {
-			const cutoff = x - plane.windowSize;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = x - this._windowSize;
 			this._trimTail(cutoff);
 		}
 
@@ -449,15 +450,86 @@ export class CandleStick extends ChartLayer {
 		}
 		if (plane && plane.update) plane.update();
 
-		try {
-			if (plane && plane.events) {
-				plane.events.emit(Events.POINT_ADDED, { point, layer: this });
-				plane.events.emit(Events.LAST_POINT_UPDATED, {
-					layer: this, stats: this.getStats(),
-					lastPoint: { x: s.lastX, y: s.lastY }
-				});
-			}
-		} catch (e) { /* ignore */ }
+		this._emitPointAdded(point);
+
+		return this;
+	}
+
+	/**
+	 * Replace the open (last) candle in place. Fires LAST_POINT_UPDATED only.
+	 *
+	 * Only high and low can move the y-extent. Open never changes within
+	 * a bucket. x is constant within a bucket, so xMin/xMax are unaffected.
+	 *
+	 * Rescan when the replaced candle's high or low was the running
+	 * extreme and the new value pulled away from it — the true extreme
+	 * may now live in an earlier candle. Otherwise the incremental
+	 * delta is exact.
+	 */
+	updateLastPoint(point) {
+		const len = this.data.length;
+		if (len === 0) return this.appendPoint(point);
+
+		const xAcc = this.xAccessor;
+		const hAcc = this.highAccessor;
+		const lAcc = this.lowAccessor;
+		const cAcc = this.closeAccessor;
+
+		const oldRow = this.data[len - 1];
+		const oldHigh = hAcc(oldRow);
+		const oldLow = lAcc(oldRow);
+		const oldClose = cAcc(oldRow);
+
+		const newX = xAcc(point);
+		const newHigh = hAcc(point);
+		const newLow = lAcc(point);
+		const newClose = cAcc(point);
+
+		const s = this._stats;
+		const prevYMin = s.yMin;
+		const prevYMax = s.yMax;
+		const prevLastY = s.lastY;
+
+		this.data[len - 1] = point;
+
+		s.lastX = newX;
+		s.lastY = newClose;
+
+		let needRescan = false;
+
+		// If the old candle held the extreme and the new value is less
+		// extreme, the true extreme may have moved. Rescan.
+		if (oldHigh === s.yMax && newHigh < oldHigh) needRescan = true;
+		if (oldLow === s.yMin && newLow > oldLow) needRescan = true;
+
+		// If the new candle *sets* a new extreme, take it incrementally.
+		if (!needRescan) {
+			if (isFinite(newHigh) && newHigh > s.yMax) s.yMax = newHigh;
+			if (isFinite(newLow) && newLow < s.yMin) s.yMin = newLow;
+		} else {
+			this._recalcStats(this.data);
+		}
+
+		const plane = this.plane;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = newX - this._windowSize;
+			this._trimTail(cutoff);
+		}
+
+		const changed =
+			prevYMin !== s.yMin ||
+			prevYMax !== s.yMax ||
+			prevLastY !== s.lastY;
+
+		this._dataDirty = true;
+		this.update();
+
+		if (changed && plane && plane._onLayerStatsChanged) {
+			plane._onLayerStatsChanged(this);
+		}
+		if (plane && plane.update) plane.update();
+
+		this._emitLastPointUpdated();
 
 		return this;
 	}
@@ -498,9 +570,9 @@ export class CandleStick extends ChartLayer {
 	setWindowSize(windowSize) {
 		this._windowSize = windowSize;
 
-		if (this.data.length > 0) {
+		if (this.trimTail && this.data.length > 0) {
 			const lastX = this.xAccessor(this.data[this.data.length - 1]);
-			const cutoff = lastX - windowSize;
+			const cutoff = lastX - this._windowSize;
 			this._trimTail(cutoff);
 		}
 

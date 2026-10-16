@@ -25,7 +25,8 @@ export class BarChart extends ChartLayer {
 			data: options.data,
 			xAccessor: options.xAccessor,
 			yAccessor: options.yAccessor,
-			decimals: options.decimals
+			decimals: options.decimals,
+			trimTail: options.trimTail
 		});
 
 		// Bar width
@@ -405,12 +406,14 @@ export class BarChart extends ChartLayer {
 		if (x < s.xMin) s.xMin = x;
 		if (x > s.xMax) s.xMax = x;
 
+		// Baseline 'zero' forces yMin <= 0 so the baseline is on-screen.
+		if (this.baseline === 'zero' && s.yMin > 0) s.yMin = 0;
+
 		const plane = this.plane;
-		if (plane && plane.windowSize) {
-			const cutoff = x - plane.windowSize;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = x - this._windowSize;
 			this._trimTail(cutoff);
 		}
-
 		const changed =
 			prevYMin !== s.yMin ||
 			prevYMax !== s.yMax ||
@@ -426,15 +429,78 @@ export class BarChart extends ChartLayer {
 		}
 		if (plane && plane.update) plane.update();
 
-		try {
-			if (plane && plane.events) {
-				plane.events.emit(Events.POINT_ADDED, { point, layer: this });
-				plane.events.emit(Events.LAST_POINT_UPDATED, {
-					layer: this, stats: this.getStats(),
-					lastPoint: { x: s.lastX, y: s.lastY }
-				});
-			}
-		} catch (e) { /* ignore */ }
+		this._emitPointAdded(point);
+
+		return this;
+	}
+
+	/**
+	 * Replace the open (last) bar in place. Fires LAST_POINT_UPDATED only.
+	 *
+	 * Only y can move the y-extent. x is constant within a bucket, so
+	 * xMin/xMax are unaffected.
+	 *
+	 * Rescan when the replaced bar held the running extreme and the
+	 * new value pulled away from it — the true extreme may now live
+	 * in an earlier bar. Otherwise the incremental delta is exact.
+	 *
+	 * Baseline 'zero' still forces yMin <= 0 after the update, in
+	 * case the rescanned or incremental yMin went positive.
+	 */
+	updateLastPoint(point) {
+		const len = this.data.length;
+		if (len === 0) return this.appendPoint(point);
+
+		const xAcc = this.xAccessor;
+		const yAcc = this.yAccessor;
+
+		const oldRow = this.data[len - 1];
+		const oldY = yAcc(oldRow);
+		const newX = xAcc(point);
+		const newY = yAcc(point);
+
+		const s = this._stats;
+		const prevYMin = s.yMin;
+		const prevYMax = s.yMax;
+		const prevLastY = s.lastY;
+
+		this.data[len - 1] = point;
+
+		s.lastX = newX;
+		s.lastY = newY;
+
+		let needRescan = false;
+		if (oldY === s.yMin && newY > oldY) needRescan = true;
+		if (oldY === s.yMax && newY < oldY) needRescan = true;
+
+		if (needRescan) {
+			this._recalcStats(this.data);
+		} else {
+			if (newY < s.yMin) s.yMin = newY;
+			if (newY > s.yMax) s.yMax = newY;
+			if (this.baseline === 'zero' && s.yMin > 0) s.yMin = 0;
+		}
+
+		const plane = this.plane;
+		if (this.trimTail && this._windowSize) {
+			const cutoff = newX - this._windowSize;
+			this._trimTail(cutoff);
+		}
+
+		const changed =
+			prevYMin !== s.yMin ||
+			prevYMax !== s.yMax ||
+			prevLastY !== s.lastY;
+
+		this._dataDirty = true;
+		this.update();
+
+		if (changed && plane && plane._onLayerStatsChanged) {
+			plane._onLayerStatsChanged(this);
+		}
+		if (plane && plane.update) plane.update();
+
+		this._emitLastPointUpdated();
 
 		return this;
 	}
@@ -466,6 +532,7 @@ export class BarChart extends ChartLayer {
 			this._recalcStats(this.data);
 		} else {
 			s.pointCount = this.data.length;
+			if (this.baseline === 'zero' && s.yMin > 0) s.yMin = 0;
 		}
 		this._dataDirty = true;
 	}
@@ -473,9 +540,9 @@ export class BarChart extends ChartLayer {
 	setWindowSize(windowSize) {
 		this._windowSize = windowSize;
 
-		if (this.data.length > 0) {
+		if (this.trimTail && this.data.length > 0) {
 			const lastX = this.xAccessor(this.data[this.data.length - 1]);
-			const cutoff = lastX - windowSize;
+			const cutoff = lastX - this._windowSize;
 			this._trimTail(cutoff);
 		}
 

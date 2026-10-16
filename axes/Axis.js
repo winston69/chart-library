@@ -42,6 +42,9 @@ export class Axis extends Layer {
 			onDestroy: options.onDestroy
 		});
 
+		// ─── SLOT ───
+		this.slot = 'margin';
+
 		// ─── SCALE ───
 		this.scale = options.scale || null;
 

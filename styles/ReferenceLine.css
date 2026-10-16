@@ -1,9 +1,10 @@
 :root {
     --ref-pulse-radius: 3;
+    --ref-font-size: 7;
 }
 
 .ref-container {
-    --ref-color: #ff6b6b;
+    --ref-color:#fbbf24;
     --ref-line-color: var(--ref-color);
     --ref-line-width: 1px;
     --ref-line-dasharray: 2 4;
@@ -29,7 +30,7 @@
 
 .ref-label {
     fill: rgba(255, 255, 255, 0.35);
-    font-size: 7px;
+    font-size: calc(var(--ref-font-size) * 1px);
     font-family: monospace;
     dominant-baseline: baseline;
     pointer-events: none;
@@ -38,6 +39,8 @@
 
 .ref-pulse {
     fill: var(--ref-pulse-color);
+    stroke: rgba(15, 15, 15, 0.6);
+    stroke-width: 1;
     vector-effect: non-scaling-stroke;
     pointer-events: none;
     transform-box: fill-box;
@@ -61,24 +64,24 @@
     }
 
     40% {
-        transform: scale(1.6);
-        opacity: 0.6;
+        transform: scale(1.4);
+        opacity: 0.7;
     }
 
     100% {
-        transform: scale(2.5);
-        opacity: 0.1;
+        transform: scale(1);
+        opacity: 1;
     }
 }
 
 @keyframes ref-ring-seismic {
     0% {
         transform: scale(0.8);
-        opacity: 0.5;
+        opacity: 0.6;
     }
 
     100% {
-        transform: scale(4);
+        transform: scale(3);
         opacity: 0;
     }
 }

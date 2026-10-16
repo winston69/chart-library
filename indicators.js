@@ -1,192 +1,118 @@
 // ──────────────────────────────────────────────────────────────
-// demo/indicators.js
+// indicators.js
 //
-// Stateful indicator computers. Each computer holds the
-// incremental state it needs (EMA values, RSI averages, rolling
-// windows) and exposes `compute(price)` returning the derived
-// fields for that sample.
+// Worker-side registry. Imports every indicator computer and
+// exposes:
 //
-// `createIndicatorSet(names)` returns an object with:
-//   - compute(row)   — runs every registered computer, merges
-//                      outputs into one object
-//   - reset()        — resets every registered computer
+//   COMPUTERS                 — name → computer factory
+//   createIndicatorSet(entries, sharedParams) — build a set
 //
-// Indicator names are keys of the COMPUTERS map below. To add a
-// new indicator:
-//   1. Write a `createXxxComputer` function.
-//   2. Add it to COMPUTERS.
-//   3. Add the derived fields to the outgoing row in the feed.
-//   4. Add a rendering factory under `indicators/`.
+// This file is the worker's only entry point into the indicators
+// directory. It pulls in only `.calc.js` files, which are pure
+// math with zero imports, so the worker's import graph stays free
+// of anything DOM-touching. The rendering classes under
+// `indicators/*.js` (MACD, RSI, Bollinger, SMA, VWMA, Volume)
+// are main-thread only and are never imported from here.
+//
+// Computer contract (each `createXCalc` returns an object with):
+//   compute(row)   → { ...derived fields }
+//   snapshot()     → opaque state object
+//   restore(snap)  → restores from a previous snapshot
+//   reset()        → clears all state
+//
+// `compute(row)` receives the whole row. Each computer reads the
+// fields it needs:
+//
+//   macd       → row.lastPrice
+//   rsi        → row.lastPrice
+//   bollinger  → row.lastPrice
+//   sma        → row.lastPrice (or the source field)
+//   vwma       → row.notional / row.volume (or HLC3 × volume)
+//
+// Reading the whole row keeps the contract uniform and lets a
+// computer access any field without a signature change.
+//
+// `createIndicatorSet` returns:
+//   compute(row)   → merges every computer's output into one object
+//   snapshot()     → captures every computer's state
+//   restore(snap)  → restores every computer's state
+//   reset()        → resets every computer
+//
+// The snapshot/restore pair lets a caller rewind to a known state
+// and recompute deterministically. The worker uses it to recompute
+// the open bucket from its bucket-start snapshot on every tick
+// without drift.
 // ──────────────────────────────────────────────────────────────
 
-// ─── MACD ───
-const MACD_FAST = 12;
-const MACD_SLOW = 26;
-const MACD_SIGNAL = 9;
-
-export function createMACDComputer() {
-	const alphaFast = 2 / (MACD_FAST + 1);
-	const alphaSlow = 2 / (MACD_SLOW + 1);
-	const alphaSignal = 2 / (MACD_SIGNAL + 1);
-
-	let emaFast = null;
-	let emaSlow = null;
-	let emaSignal = null;
-
-	return {
-		compute(price) {
-			if (emaFast === null) {
-				emaFast = price;
-				emaSlow = price;
-			} else {
-				emaFast = alphaFast * price + (1 - alphaFast) * emaFast;
-				emaSlow = alphaSlow * price + (1 - alphaSlow) * emaSlow;
-			}
-			const macd = emaFast - emaSlow;
-
-			if (emaSignal === null) {
-				emaSignal = macd;
-			} else {
-				emaSignal = alphaSignal * macd + (1 - alphaSignal) * emaSignal;
-			}
-
-			return {
-				macd,
-				macdSignal: emaSignal,
-				macdHistogram: macd - emaSignal
-			};
-		},
-		reset() {
-			emaFast = null;
-			emaSlow = null;
-			emaSignal = null;
-		}
-	};
-}
-
-// ─── RSI ───
-const RSI_PERIOD = 14;
-
-export function createRSIComputer() {
-	let avgGain = null;
-	let avgLoss = null;
-	let prevClose = null;
-	const buf = [];
-
-	return {
-		compute(price) {
-			if (prevClose === null) {
-				prevClose = price;
-				buf.push(price);
-				return { rsi: 50 };
-			}
-
-			const change = price - prevClose;
-			const gain = change > 0 ? change : 0;
-			const loss = change < 0 ? -change : 0;
-			prevClose = price;
-
-			if (buf.length < RSI_PERIOD + 1) {
-				buf.push(price);
-				if (buf.length === RSI_PERIOD + 1) {
-					let totalGain = 0;
-					let totalLoss = 0;
-					for (let i = 1; i < buf.length; i++) {
-						const d = buf[i] - buf[i - 1];
-						if (d > 0) totalGain += d;
-						else if (d < 0) totalLoss -= d;
-					}
-					avgGain = totalGain / RSI_PERIOD;
-					avgLoss = totalLoss / RSI_PERIOD;
-				} else {
-					return { rsi: 50 };
-				}
-			} else {
-				avgGain = (avgGain * (RSI_PERIOD - 1) + gain) / RSI_PERIOD;
-				avgLoss = (avgLoss * (RSI_PERIOD - 1) + loss) / RSI_PERIOD;
-			}
-
-			if (avgLoss === 0) return { rsi: 100 };
-			const rs = avgGain / avgLoss;
-			return { rsi: 100 - (100 / (1 + rs)) };
-		},
-		reset() {
-			avgGain = null;
-			avgLoss = null;
-			prevClose = null;
-			buf.length = 0;
-		}
-	};
-}
-
-// ─── Bollinger ───
-const BB_PERIOD = 20;
-const BB_MULTIPLIER = 2;
-
-export function createBollingerComputer() {
-	const window = [];
-
-	return {
-		compute(price) {
-			window.push(price);
-			if (window.length > BB_PERIOD) window.shift();
-
-			const n = window.length;
-			let sum = 0;
-			for (let i = 0; i < n; i++) sum += window[i];
-			const mean = sum / n;
-
-			let variance = 0;
-			for (let i = 0; i < n; i++) {
-				const d = window[i] - mean;
-				variance += d * d;
-			}
-			const std = Math.sqrt(variance / n);
-
-			return {
-				bbMean: mean,
-				bbStd: std,
-				bbUpper: mean + BB_MULTIPLIER * std,
-				bbLower: mean - BB_MULTIPLIER * std
-			};
-		},
-		reset() {
-			window.length = 0;
-		}
-	};
-}
-
-// ─── Registry ───
+import { createMACDCalc } from './indicators/MACD.calc.js';
+import { createRSICalc } from './indicators/RSI.calc.js';
+import { createBollingerCalc } from './indicators/Bollinger.calc.js';
+import { createSMACalc } from './indicators/SMA.calc.js';
+import { createVWMACalc } from './indicators/VWMA.calc.js';
 
 /**
  * Lookup table of indicator computers. Keys are the indicator
  * names; values are factory functions that return a fresh
  * computer instance.
  *
- * Order matters: `createIndicatorSet` runs them in the order
- * their names appear in the input array, so any indicator that
- * depends on another's output should be listed after it. None of
- * the current indicators have dependencies.
+ * Order matters: `createIndicatorSet` runs the computers in the
+ * order their names appear in the input array, so any indicator
+ * that depends on another's output should be listed after it.
+ * None of the current indicators have dependencies.
  */
 export const COMPUTERS = {
-	macd: createMACDComputer,
-	rsi: createRSIComputer,
-	bollinger: createBollingerComputer
+	macd: createMACDCalc,
+	rsi: createRSICalc,
+	bollinger: createBollingerCalc,
+	sma: createSMACalc,
+	vwma: createVWMACalc
 };
+
+/**
+ * Normalizes an indicator entry into `{ name, params }`.
+ *
+ *   'macd'                        → { name: 'macd',  params: {} }
+ *   { name: 'sma', periodMs: … }  → { name: 'sma',   params: { periodMs: … } }
+ *
+ * Anything with a string `name` is treated as a parametrized
+ * entry; everything else is treated as a plain name.
+ */
+function normalizeEntry(entry) {
+	if (typeof entry === 'string') {
+		return { name: entry, params: {} };
+	}
+	if (entry && typeof entry === 'object' && typeof entry.name === 'string') {
+		const { name, ...params } = entry;
+		return { name, params };
+	}
+	throw new Error(
+		`createIndicatorSet: invalid indicator entry ${JSON.stringify(entry)}. ` +
+		`Expected a string or an object with a "name" field.`
+	);
+}
 
 /**
  * Creates an indicator set that runs the named computers in
  * sequence and merges their outputs.
  *
- * @param {string[]} names — indicator names, e.g. ['macd', 'rsi']
- * @returns {{ compute(row): object, reset(): void }}
+ * @param {(string|{name: string, ...params})[]} entries
+ * @param {object} [sharedParams] — merged into every entry's
+ *                   params, with per-entry params taking
+ *                   precedence. Typical use: `{ bucketMs }`.
+ * @returns {{
+ *   compute(row): object,
+ *   snapshot(): object,
+ *   restore(snap): void,
+ *   reset(): void
+ * }}
  */
-export function createIndicatorSet(names) {
-	if (!Array.isArray(names) || names.length === 0) {
-		throw new Error('createIndicatorSet: names must be a non-empty array.');
+export function createIndicatorSet(entries, sharedParams = {}) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		throw new Error('createIndicatorSet: entries must be a non-empty array.');
 	}
 
-	const computers = names.map(name => {
+	const resolved = entries.map(entry => {
+		const { name, params } = normalizeEntry(entry);
 		const factory = COMPUTERS[name];
 		if (!factory) {
 			throw new Error(
@@ -194,22 +120,38 @@ export function createIndicatorSet(names) {
 				`Known: ${Object.keys(COMPUTERS).join(', ')}`
 			);
 		}
-		return factory();
+		return { name, computer: factory({ ...sharedParams, ...params }) };
 	});
 
 	return {
 		compute(row) {
-			const price = row.lastPrice;
 			let out = null;
-			for (let i = 0; i < computers.length; i++) {
-				const partial = computers[i].compute(price);
+			for (let i = 0; i < resolved.length; i++) {
+				const partial = resolved[i].computer.compute(row);
 				if (out === null) out = partial;
 				else Object.assign(out, partial);
 			}
 			return out;
 		},
+
+		snapshot() {
+			const out = {};
+			for (let i = 0; i < resolved.length; i++) {
+				const r = resolved[i];
+				out[r.name] = r.computer.snapshot();
+			}
+			return out;
+		},
+
+		restore(snap) {
+			for (let i = 0; i < resolved.length; i++) {
+				const r = resolved[i];
+				if (snap && snap[r.name]) r.computer.restore(snap[r.name]);
+			}
+		},
+
 		reset() {
-			for (let i = 0; i < computers.length; i++) computers[i].reset();
+			for (let i = 0; i < resolved.length; i++) resolved[i].computer.reset();
 		}
 	};
 }
