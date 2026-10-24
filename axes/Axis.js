@@ -9,12 +9,17 @@ import { Layer } from '../core/Layer.js';
 const css = CSS.axis;
 
 // Tick lengths. Subclasses override the defaults.
-export const TICK_LENGTH_MAJOR = 6;
-export const TICK_LENGTH_MINOR = 4;
-export const TICK_LENGTH_MICRO = 2;
+export const TICK_LENGTH_MAJOR = 7;
+export const TICK_LENGTH_MINOR = 5;
+export const TICK_LENGTH_MICRO = 3;
 
 const DEFAULT_TIME_TICK_COUNT = 15;
-const DEFAULT_NUMERIC_TICK_COUNT = 12;
+const DEFAULT_NUMERIC_TICK_COUNT = 4;
+
+// Pixel-spacing floors. A minor or micro tier whose on-screen spacing
+// falls below these thresholds is dropped from the render pass.
+const DEFAULT_MIN_MICRO_SPACING = 4;
+const DEFAULT_MIN_MINOR_SPACING = 8;
 
 const TIME_UNITS = [
 	1, 10, 50, 100, 250, 500,
@@ -30,6 +35,16 @@ const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 
 const EMPTY_TICKS = [];
+
+/**
+ * Step-derived decimal precision. For a major step of 100,
+ * returns 0. For 0.2, returns 1. For 0.02, returns 2.
+ * Used as a floor when combining with a declared precision.
+ */
+function decimalsForStep(step) {
+	if (!isFinite(step) || step <= 0) return 0;
+	return Math.max(0, -Math.floor(Math.log10(step)));
+}
 
 export class Axis extends Layer {
 	constructor(options = {}) {
@@ -57,6 +72,17 @@ export class Axis extends Layer {
 		this.minorTickSize = options.minorTickSize !== undefined ? options.minorTickSize : null;
 		this.microTickSize = options.microTickSize !== undefined ? options.microTickSize : null;
 
+		// ─── PIXEL-SPACING GUARD ───
+		// Minor and micro tiers are dropped when their on-screen
+		// spacing falls below these thresholds. Measured in pixels
+		// along the axis's own dimension.
+		this.minMinorSpacing = options.minMinorSpacing !== undefined
+			? options.minMinorSpacing
+			: DEFAULT_MIN_MINOR_SPACING;
+		this.minMicroSpacing = options.minMicroSpacing !== undefined
+			? options.minMicroSpacing
+			: DEFAULT_MIN_MICRO_SPACING;
+
 		// ─── LABELS ───
 		this.tickPadding = options.tickPadding || 4;
 		this.tickFormat = options.tickFormat || null;
@@ -72,13 +98,14 @@ export class Axis extends Layer {
 		this.bandGroupId = options.bandGroupId || null;
 
 		// ─── FONT SIZE ───
-		// Resolved once from CSS. Feeds tick-spacing math and label
-		// placement. A missing variable throws in CSS.getNumber.
 		this.fontSize = options.fontSize !== undefined
 			? options.fontSize
 			: CSS.getNumber('--axis-font-size');
 
 		// ─── DECIMALS ───
+		// `decimals` is the declared precision. The effective precision
+		// for grid labels is max(declared, stepDerived). Step-derived
+		// is the floor; the declared value can only raise it.
 		this._decimalsExplicit = options.decimals !== undefined;
 		this.decimals = options.decimals !== undefined ? options.decimals : 2;
 
@@ -214,19 +241,30 @@ export class Axis extends Layer {
 	}
 
 	// ─── Decimals ───
-	_getEffectiveDecimals() {
+	_getDeclaredDecimals() {
 		if (this._decimalsExplicit) return this.decimals;
 
-		let declared = this.decimals;
 		const plane = this.plane;
 		if (this.bandGroupId && plane && plane._yGroups) {
 			const group = plane._yGroups[this.bandGroupId];
 			if (group && group.decimals !== undefined) {
-				declared = group.decimals;
+				return group.decimals;
 			}
 		}
+		return this.decimals;
+	}
 
-		let derived = declared;
+	/**
+	 * Effective decimals for crosshair / snap labels and other data
+	 * readouts. Uses the declared precision as a floor, then raises
+	 * it if the domain is small enough to need more digits.
+	 *
+	 * Grid labels use a different rule: `decimals = max(declared,
+	 * stepDerived)` — see `_computeTickTiers`.
+	 */
+	_getEffectiveDecimals() {
+		let derived = this._getDeclaredDecimals();
+
 		const scale = this.scale;
 		if (scale && scale.domain) {
 			const dMin = scale.domain[0];
@@ -259,6 +297,17 @@ export class Axis extends Layer {
 		if (!isFinite(step) || step <= 0) return 10;
 		const exp = Math.floor(Math.log10(step));
 		return Math.max(0, -exp + 1);
+	}
+
+	// ─── Pixel-spacing guard ───
+	// Returns the on-screen spacing of a tier's data step, in pixels.
+	// Used to drop minor/micro tiers that would render too densely.
+	_pixelSpacingForStep(step, domainLength) {
+		if (!isFinite(step) || step <= 0) return 0;
+		if (!isFinite(domainLength) || domainLength <= 0) return 0;
+		const pixelLength = this._getPixelLength();
+		if (!isFinite(pixelLength) || pixelLength <= 0) return 0;
+		return (step / domainLength) * pixelLength;
 	}
 
 	// ─── Step snapping ───
@@ -358,16 +407,16 @@ export class Axis extends Layer {
 		const dMin = scale.domain[0];
 		const dMax = scale.domain[1];
 		const domainLength = dMax > dMin ? dMax - dMin : dMin - dMax;
-		const decimals = this._getEffectiveDecimals();
 		const isTime = this._isTimeScale();
+		const declared = this._getDeclaredDecimals();
 
 		if (domainLength === 0 || !isFinite(domainLength)) {
 			return {
 				majorStep: isTime ? MINUTE_MS : 1,
 				minorStep: null,
 				microStep: null,
-				decimals,
-				genDecimals: decimals
+				decimals: declared,
+				genDecimals: declared
 			};
 		}
 
@@ -378,36 +427,57 @@ export class Axis extends Layer {
 		const maxTicks = this._computeMaxTicks();
 		const effectiveTickCount = Math.max(2, Math.min(preferredTicks, maxTicks));
 
+		let tiers;
 		if (isTime) {
-			return this._computeTimeTiers(domainLength, effectiveTickCount, decimals);
+			tiers = this._computeTimeTiers(domainLength, effectiveTickCount, declared);
+		} else if (this.tickStepMode === 'decimal') {
+			tiers = this._computeDecimalTiers(domainLength, effectiveTickCount, declared);
+		} else {
+			tiers = this._computeNiceTiers(domainLength, effectiveTickCount, declared);
 		}
-		if (this.tickStepMode === 'decimal') {
-			return this._computeDecimalTiers(domainLength, effectiveTickCount, decimals);
-		}
-		return this._computeNiceTiers(domainLength, effectiveTickCount, decimals);
+
+		// Combine declared with step-derived. Step-derived is a
+		// floor: declared can raise the effective precision but
+		// cannot lower it below what the step requires.
+		const stepDecimals = decimalsForStep(tiers.majorStep);
+		tiers.decimals = Math.max(declared, stepDecimals);
+		return tiers;
 	}
 
-	_computeNiceTiers(domainLength, tickCount, decimals) {
+	_computeNiceTiers(domainLength, tickCount, declared) {
 		const idealStep = domainLength / tickCount;
 		const majorStep = this._snapToNiceStep(idealStep);
 
 		let minorStep = null;
 		if (this.showMinorTicks) {
-			const candidate = majorStep / 5;
-			const minStep = Math.pow(10, -decimals);
-			if (candidate > 0 && candidate >= minStep) minorStep = candidate;
+			const candidate = majorStep / 2;
+			const minStep = Math.pow(10, -declared);
+			const pxSpacing = this._pixelSpacingForStep(candidate, domainLength);
+			if (candidate > 0 && candidate >= minStep && pxSpacing >= this.minMinorSpacing) {
+				minorStep = candidate;
+			}
+		}
+
+		let microStep = null;
+		if (this.showMicroTicks) {
+			const candidate = majorStep / 10;
+			const minStep = Math.pow(10, -declared);
+			const pxSpacing = this._pixelSpacingForStep(candidate, domainLength);
+			if (candidate > 0 && candidate >= minStep && pxSpacing >= this.minMicroSpacing) {
+				microStep = candidate;
+			}
 		}
 
 		return {
 			majorStep,
 			minorStep,
-			microStep: null,
-			decimals,
-			genDecimals: decimals
+			microStep,
+			decimals: declared,
+			genDecimals: Math.max(declared, decimalsForStep(microStep || minorStep || majorStep))
 		};
 	}
 
-	_computeDecimalTiers(domainLength, tickCount, decimals) {
+	_computeDecimalTiers(domainLength, tickCount, declared) {
 		if (this.tickUnit === 'imperial' && !this._warnedDecimalImperial) {
 			this._warnedDecimalImperial = true;
 			console.warn(
@@ -425,8 +495,8 @@ export class Axis extends Layer {
 				majorStep,
 				minorStep: null,
 				microStep: null,
-				decimals,
-				genDecimals: decimals
+				decimals: declared,
+				genDecimals: declared
 			};
 		}
 
@@ -434,16 +504,23 @@ export class Axis extends Layer {
 		const minorStep = microStep * 5;
 		const majorStep = microStep * 10;
 
+		const microPx = this._pixelSpacingForStep(microStep, domainLength);
+		const minorPx = this._pixelSpacingForStep(minorStep, domainLength);
+
 		return {
 			majorStep,
-			minorStep: this.showMinorTicks ? minorStep : null,
-			microStep: this.showMicroTicks ? microStep : null,
-			decimals,
+			minorStep: (this.showMinorTicks && minorPx >= this.minMinorSpacing)
+				? minorStep
+				: null,
+			microStep: (this.showMicroTicks && microPx >= this.minMicroSpacing)
+				? microStep
+				: null,
+			decimals: declared,
 			genDecimals: this._decimalGenDecimals(microStep)
 		};
 	}
 
-	_computeTimeTiers(domainLength, tickCount, decimals) {
+	_computeTimeTiers(domainLength, tickCount, declared) {
 		let idealStep;
 		if (this.timeInterval) {
 			const squeezed = domainLength / tickCount;
@@ -458,15 +535,19 @@ export class Axis extends Layer {
 		let microStep = null;
 
 		if (this.showMinorTicks) {
-			minorStep = this._snapToTimeMinor(majorStep);
-			if (minorStep >= majorStep) minorStep = null;
+			const candidate = this._snapToTimeMinor(majorStep);
+			if (candidate < majorStep) {
+				const pxSpacing = this._pixelSpacingForStep(candidate, domainLength);
+				if (pxSpacing >= this.minMinorSpacing) minorStep = candidate;
+			}
 		}
 
 		if (this.showMicroTicks && minorStep) {
 			const candidate = minorStep / 2;
 			for (let j = 0, len = TIME_UNITS.length; j < len; j++) {
 				if (TIME_UNITS[j] === candidate) {
-					microStep = candidate;
+					const pxSpacing = this._pixelSpacingForStep(candidate, domainLength);
+					if (pxSpacing >= this.minMicroSpacing) microStep = candidate;
 					break;
 				}
 			}
@@ -476,7 +557,7 @@ export class Axis extends Layer {
 			majorStep,
 			minorStep,
 			microStep,
-			decimals,
+			decimals: declared,
 			genDecimals: this._timeGenDecimals(microStep || minorStep || majorStep)
 		};
 	}
@@ -597,7 +678,7 @@ export class Axis extends Layer {
 			this._tierDecimals = tiers.decimals;
 			this._tierGenDecimals = tiers.genDecimals;
 
-			if (tiers.microStep) {
+			if (tiers.microStep && tiers.minorStep && tiers.majorStep) {
 				const minorEvery = Math.round(tiers.minorStep / tiers.microStep);
 				const majorEvery = Math.round(tiers.majorStep / tiers.microStep);
 				const result = this._generateTieredTicks(
@@ -772,7 +853,7 @@ export class Axis extends Layer {
 		const currentRange = scale.range[0] + ',' + scale.range[1];
 		const bb = this._getBandBounds();
 		const boundsKey = bb ? `${bb.top},${bb.bottom}` : '';
-		const decimalsKey = String(this._getEffectiveDecimals());
+		const decimalsKey = String(this._getDeclaredDecimals());
 
 		if (this._cachedPlotKey === plotKey &&
 			this._cachedScaleDomain === currentDomain &&

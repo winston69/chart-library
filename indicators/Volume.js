@@ -31,7 +31,7 @@ import { BaseIndicator } from './BaseIndicator.js';
 
 const DEFAULT_Y_GROUP = 'volume-group';
 const DEFAULT_HEIGHT = 0.20;
-const DEFAULT_DECIMALS = 0;
+const DEFAULT_DECIMALS = 2;
 
 export class Volume extends BaseIndicator {
 	constructor(options = {}) {

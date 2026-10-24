@@ -156,6 +156,7 @@ export const CSS = {
 	},
 
 	// ─── UI ───
+	// ─── UI ───
 	button: {
 		btn: 'btn',
 		sm: 'btn-sm',
@@ -175,9 +176,23 @@ export const CSS = {
 		shortcut: 'btn-shortcut'
 	},
 
+	dropdown: {
+		root: 'dd-root',
+		trigger: 'dd-trigger',
+		triggerLabel: 'dd-trigger-label',
+		caret: 'dd-caret',
+		popup: 'dd-popup',
+		item: 'dd-item',
+		selected: 'dd-item-selected',
+		highlighted: 'dd-item-highlighted'
+	},
+
 	toolbar: {
 		container: 'tb-container',
-		group: 'tb-group'
+		group: 'tb-group',
+		groupCluster: 'tb-group-cluster',
+		groupLabel: 'tb-group-label',
+		groupItems: 'tb-group-items'
 	},
 
 	tooltip: {

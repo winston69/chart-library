@@ -1,0 +1,190 @@
+/* ──────────────────────────────────────────────────────────────
+   Dropdown.css
+   ──────────────────────────────────────────────────────────────
+   Trigger styling reuses Button's classes (btn, btn-sm, etc.)
+   for a consistent look with the rest of the toolbar. This file
+   only adds what a dropdown needs beyond a button: the compound
+   trigger layout (label + caret), the floating popup, its items,
+   and the open/closed/placement states.
+   ────────────────────────────────────────────────────────────── */
+
+:root {
+	--dd-popup-bg: #1f1f1f;
+	--dd-popup-border: rgba(255, 255, 255, 0.12);
+	--dd-popup-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+	--dd-popup-radius: 4px;
+	--dd-popup-padding: 4px;
+	--dd-popup-gap: 4px;
+	--dd-popup-min-width: 90px;
+	--dd-popup-max-height: 240px;
+
+	--dd-item-fg: rgba(230, 230, 230, 0.9);
+	--dd-item-fg-selected: #ffffff;
+	--dd-item-fg-highlighted: #ffffff;
+	--dd-item-bg-hover: rgba(255, 255, 255, 0.08);
+	--dd-item-bg-highlighted: rgba(255, 255, 255, 0.12);
+	--dd-item-bg-selected: rgba(255, 255, 255, 0.16);
+	--dd-item-padding-y: 4px;
+	--dd-item-padding-x: 8px;
+
+	--dd-placeholder-fg: rgba(255, 255, 255, 0.4);
+	--dd-caret-size: 12px;
+	--dd-caret-gap: 6px;
+}
+
+/* ─── ROOT ─── */
+/* Positioning context for the popup. The trigger's own classes
+   (btn, btn-<variant>, btn-<size>) come from Button.css. */
+
+.dd-root {
+	position: relative;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+/* ─── TRIGGER ─── */
+/* The trigger is a Button-styled div with two children: a label
+   and a caret. Layout is a small flex row. */
+
+.dd-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--dd-caret-gap);
+	cursor: pointer;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.dd-trigger[data-disabled="true"] {
+	cursor: default;
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.dd-trigger[data-open="true"] {
+	/* Subtle indication that the popup is open. Button.css may
+	   already provide a hover/selected style; this is a fallback
+	   in case the variant doesn't. */
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.dd-trigger-label {
+	/* Greys only when the placeholder is showing. Normal state
+	   inherits the trigger's color. */
+	color: inherit;
+}
+
+.dd-trigger[data-placeholder="true"] .dd-trigger-label {
+	color: var(--dd-placeholder-fg);
+}
+
+.dd-caret {
+	width: var(--dd-caret-size);
+	height: var(--dd-caret-size);
+	flex: 0 0 auto;
+	color: inherit;
+	opacity: 0.7;
+	transition: opacity 120ms ease;
+}
+
+.dd-trigger[data-open="true"] .dd-caret {
+	opacity: 1;
+}
+
+/* ─── POPUP ─── */
+/* Absolutely positioned relative to .dd-root. Placement is
+   controlled by [data-placement]. */
+
+.dd-popup {
+	position: absolute;
+	left: 0;
+	z-index: 1000;
+
+	min-width: var(--dd-popup-min-width);
+	/* Grow with content if an item is longer than the trigger. */
+	width: max-content;
+	max-width: 240px;
+
+	max-height: var(--dd-popup-max-height);
+	overflow-y: auto;
+	overflow-x: hidden;
+
+	padding: var(--dd-popup-padding);
+	background: var(--dd-popup-bg);
+	border: 1px solid var(--dd-popup-border);
+	border-radius: var(--dd-popup-radius);
+	box-shadow: var(--dd-popup-shadow);
+
+	box-sizing: border-box;
+}
+
+.dd-popup[data-placement="below"] {
+	top: calc(100% + var(--dd-popup-gap));
+	bottom: auto;
+}
+
+.dd-popup[data-placement="above"] {
+	bottom: calc(100% + var(--dd-popup-gap));
+	top: auto;
+}
+
+.dd-popup[hidden] {
+	display: none;
+}
+
+/* ─── ITEMS ─── */
+
+.dd-item {
+	display: block;
+	padding: var(--dd-item-padding-y) var(--dd-item-padding-x);
+	color: var(--dd-item-fg);
+	font: inherit;
+	font-size: 8px;
+	font-family: ui-monospace, monospace;
+	cursor: pointer;
+	border-radius: 2px;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.dd-item:hover {
+	background: var(--dd-item-bg-hover);
+}
+
+.dd-item.dd-item-highlighted {
+	background: var(--dd-item-bg-highlighted);
+	color: var(--dd-item-fg-highlighted);
+}
+
+.dd-item.dd-item-selected {
+	background: var(--dd-item-bg-selected);
+	color: var(--dd-item-fg-selected);
+	font-weight: 500;
+}
+
+/* Selected + highlighted: selected bg wins, highlighted
+   reinforcement is unnecessary since both indicate "this one."
+   Hover on selected also stays selected-styled. */
+
+.dd-item.dd-item-selected:hover {
+	background: var(--dd-item-bg-selected);
+}
+
+/* ─── SCROLLBAR (narrow, matching the demo's aesthetic) ─── */
+
+.dd-popup::-webkit-scrollbar {
+	width: 6px;
+}
+
+.dd-popup::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.dd-popup::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 3px;
+}
+
+.dd-popup::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.25);
+}

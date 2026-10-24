@@ -3,21 +3,21 @@
    ────────────────────────────────────────────────────────────── */
 
 :root {
-    --axis-font-size: 8px;
     --axis-font-family: monospace;
-    --axis-label-font-size: 10px;
+    --axis-font-size: 8;
+    --axis-label-font-size: 10;
     --axis-label-font-weight: bold;
 
     --axis-color: rgba(255, 255, 255, 0.5);
+    --axis-line-color: rgba(255, 255, 255, 0.4);
+    --tick-line-color: rgba(255, 255, 255, 0.4);
     --axis-label-color: rgba(255, 255, 255, 0.8);
     --tick-label-color: rgba(255, 255, 255, 0.7);
     --grid-color: rgba(255, 255, 255, 0.15);
-
-    --axis-line-color: rgba(255, 255, 255, 0.4);
-    --axis-line-width: 1px;
-    --tick-line-color: rgba(255, 255, 255, 0.4);
-    --tick-line-width: 1px;
-    --grid-line-width: 0.5px;
+    
+    --axis-line-width: 1;
+    --tick-line-width: 1;
+    --grid-line-width: 0.5;
     --grid-line-dash: 2 2;
 }
 

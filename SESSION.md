@@ -1,7 +1,7 @@
 # SESSION
 
 Project: multi-band chart library + demo.
-Last update: 2026-10-16.
+Last update: 2026-10-24.
 
 ## Purpose of this file
 
@@ -28,6 +28,8 @@ This file explains what the code *means* and where it's going.
   in the worker.
 - The worker computes indicators; the main thread renders.
   No DOM imports enter the worker's import graph.
+- The live worker buffers raw trades and rebuckets on demand.
+  Timeframe changes do not clear the chart; they swap seeds.
 
 ## Layer inventory
 
@@ -44,7 +46,7 @@ Primitives:
 - `CrosshairLayer`, `InteractionLayer` — pointer behaviors.
 
 Card layers (HTML overlay): `CardStrip`, `Legend`, `OHLCCard`, `InfoCard`.
-UI layers: `Button`, `ToolBar`, `ToolTip`.
+UI layers: `Button`, `Dropdown`, `ToolBar`, `ToolTip`.
 
 Indicator classes (main-thread rendering):
 - `BaseIndicator` — base class owning layer list, dispatch.
@@ -91,77 +93,110 @@ Indicator computers (worker-side, pure math):
    open bucket from a bucket-start snapshot on every tick, so
    indicator values during a forming bucket are a pure function
    of (state at open, current input). No drift.
+10. Axis grid labels derive their decimal precision from the
+    major step: `decimals = max(declared, stepDerived)`. Declared
+    is a floor. Step-derived is `max(0, -floor(log10(majorStep)))`.
+    Crosshair / snap labels use `_getEffectiveDecimals()` (the
+    declared value, raised if the domain is small enough).
+11. Axis minor and micro tiers are dropped when their on-screen
+    spacing falls below the configured thresholds
+    (`minMinorSpacing`, default 8px; `minMicroSpacing`, default
+    4px). This keeps dense tiers off short bands.
+12. Source selection and feed emission are separate concerns.
+    `currentSource` picks which worker is active; `feedRunning`
+    mirrors the active worker's emission state. The source
+    dropdown selects; the feed button starts/pauses.
 
 ## Recent cleanups
 
-### Session 2026-10-16
+### Session 2026-10-24
 
-- Introduced `BaseIndicator` as the base class for all
-  rendering indicators. Owns `layers`, `group`, `primaryLayer`,
-  and dispatch (`appendPoint`, `updateLastPoint`,
-  `appendOrUpdate`, `setData`, `remove`).
-- Converted `createMACD`/`createRSI`/`createBollinger` from
-  factory functions to classes: `MACD`, `RSI`, `Bollinger`.
-  Same option surface; `new MACD({...})` instead of
-  `createMACD({...})`.
-- Added `SMA`, `VWMA`, `Volume` indicator classes.
-- Moved computers out of `indicators.js` into per-indicator
-  `*.calc.js` files. Renamed `createXComputer` → `createXCalc`.
-- `indicators.js` is now a thin registry: imports each
-  `createXCalc`, exports `COMPUTERS` and `createIndicatorSet`.
-- `createIndicatorSet` now accepts entries as either a string
-  or `{ name, ...params }`. Shared params (like `bucketMs`) are
-  passed as a second argument and merged into each entry.
-- `compute(row)` contract: computers receive the whole row and
-  read the fields they need. Registry forwards the row.
-- Layers now trim at `this._windowSize` (set by the plane to
-  `maxData`), not at `plane.windowSize`.
-- `CartesianPlane` gained `maxData` (retention cap) and
-  `padding` (right-gap fraction) options.
-- `domainStrategy` default is now `expanding`, not `static`.
-  `expanding` fits all data left-justified with a right pad.
-- Demo uses `padding: 0.05`, `maxData: 7 days`,
-  `windowSize: 24h`.
-- Axes now render into margin slots (`Axis.slot = 'margin'`),
-  not `plot-area`. Layout unchanged; structurally correct and
-  unblocks future plot-area clipping.
-- `ReferenceLine._renderLabel` measures text with
-  `getComputedTextLength()` instead of `text.length * 6`, so
-  the flip decision is accurate. Falls back to an estimate
-  (`text.length * labelFontSize * 0.6`) on the first frame
-  after a text change.
-- `ReferenceLine` reads `--ref-font-size` from CSS via
-  `CSS.getNumber` once in the constructor.
-- Crosshair snap dot is now a `<g>` containing a core dot plus
-  three animated rings, matching the ReferenceLine pulse
-  structure. Positioned via `transform: translate(x, y)`.
-- Crosshair and ReferenceLine share pulse animations
-  (duplicated keyframes in each CSS file), the same amber color
-  (`#fbbf24`), the same dark rim (`rgba(15, 15, 15, 0.6)`,
-  `1px`), and the same seamless-looping keyframes (1 → 1.4 → 1
-  for the core; 0.8 → 3 for rings).
-- `CSS.crosshair` gained `snapGroup` and `snapRing` keys.
+Toolbar and controls
+- Introduced `Dropdown` (`ui/Dropdown.js`) — trigger built
+  internally (label + caret), popup with item list, keyboard
+  navigation, click-away close, flip-up placement when space
+  below is tight.
+- Added `caretDown` / `caretUp` to `Icons.js`.
+- Introduced `ToolBar` groups: `addGroup({ id, label,
+  showLabel })`. `tool` group created implicitly. Groups render
+  as clusters with an optional label and a divider between
+  clusters.
+- Added `ToolBar.showGroupLabels` toggle, per-group override.
+- `CSS.toolbar` gained `groupCluster`, `groupLabel`,
+  `groupItems`.
+- Toolbar layout: Tools, View, Data, Demo clusters.
+- `Dropdown.setTooltip` added.
+
+Feed model
+- Split source selection from feed emission. `sourceButton` →
+  `sourceDropdown` (Demo / Live options). Feed control is a
+  separate button.
+- Single `feedRunning` + `currentSource`; the source dropdown
+  stops the running worker before switching.
+- Demo worker is persistent (seeded on page load).
+- Live worker is lazy (created on first start).
+- `resetData` clears the chart and sends `reset` to the
+  active worker. Demo reseeds from scratch; live disconnects,
+  clears its buffer, and reconnects with an empty seed.
+- No synthetic live seed. The `seed` mechanism is preserved;
+  live posts `{ type: 'seed', data: [] }` on start and after
+  reset.
+
+Live worker buffer
+- Added `tradeBuffer` (chronological `{ price, qty, time }`).
+  Bounded by `maxData` in time and `MAX_TRADES` in count.
+- `stop` now pauses emission but keeps the WebSocket open and
+  the buffer growing.
+- New `disconnect` message: stops emission, closes the
+  WebSocket, clears the buffer.
+- `config` detects field changes. Symbol/stream change →
+  disconnect + clear + reconnect + empty seed. Timeframe
+  change → rebucket from buffer + fresh seed. No reconnect.
+- `reset` = disconnect + clear + reconnect (if was emitting) +
+  empty seed.
+- `start` emits the current buffer as a seed before beginning
+  to tick. Catches up after a pause.
+- Removed `buildSeed` (the synthetic random walk).
+- Removed the per-bucket `data` array (`finalizeBucket` now
+  just clears `currentBucket`).
+
+Axis
+- Step-derived decimal precision. Grid labels use
+  `decimals = max(declared, stepDerived)`.
+- `minorStep = majorStep / 2`, `microStep = majorStep / 10`
+  (was `/5` and null for the nice path).
+- Pixel-spacing guard: minor/micro tiers dropped below
+  `minMinorSpacing` / `minMicroSpacing`.
+- `DEFAULT_NUMERIC_TICK_COUNT` dropped from 12 to 4 (soft
+  target; snapped step often yields more).
+- `decimalsForStep()` helper at module scope.
+
+Crosshair / reference line
+- Crosshair snap dot is a `<g>` containing a core dot plus
+  three animated rings, matching the ReferenceLine pulse.
+- Shared amber fill (`#fbbf24`), shared dark rim
+  (`rgba(15, 15, 15, 0.6)`), shared keyframes (seamless loop).
+- ReferenceLine label measures text with
+  `getComputedTextLength()`; falls back to an estimate on the
+  first frame.
+
+Layer behavior
+- Layers trim at `this._windowSize` (set by the plane to
+  `maxData`), not `plane.windowSize`.
+- `CartesianPlane` gained `maxData` and `padding`.
+- `domainStrategy` default is `expanding`.
+- Axes render into margin slots (`Axis.slot = 'margin'`).
 
 ### Earlier
 
-- Split LineChart into Line, Area, Points.
-- Extracted GhostLine and BandFill as standalone layers.
-- Removed Pointer.js; SVG.getPoint and SVG.pointInBounds on SVG.
-- Removed Axis.js compat shim; AxisLayer renamed to Axis.
-- Removed CartesianPlane._getSvgPoint; consumers call SVG.getPoint.
-- CSS.js trimmed to class maps + get/getNumber.
-- Utils.js trimmed to functions with active callers.
-- Added core/Icons.js: SVG icon registry with currentColor theming.
-- Migrated toolbar icons from emoji to SVG.
-- Flattened toolbar buttons: square, no borders, no gaps.
-- Fixed Button.setIcon to rebuild icon node on change.
-- Extracted indicator computation from chart-demo-feed.js into
-  demo/indicators.js (createIndicatorSet) — since superseded by
-  the `*.calc.js` split.
-- Band stack bottom-to-top: volume, RSI, price, MACD.
-- Converted the live feed to a module worker.
-- Removed the ghost from CandleStick.
-- Live feed uses `<symbol>@trade` with bucketed candles.
+- Introduced `BaseIndicator`. Converted MACD/RSI/Bollinger to
+  classes. Added SMA/VWMA/Volume.
+- Split computers into per-indicator `*.calc.js` files.
+  `indicators.js` is now a thin registry.
+- `compute(row)` contract; `createIndicatorSet` accepts
+  params + sharedParams.
+- Initial session 2026-10-16 changes listed in the prior
+  SESSION.md revision (available in git history).
 
 ## Band configuration (current)
 
@@ -169,11 +204,11 @@ const BAND_HEIGHTS = {
    macd: 0.20,
    price: 0.45,
    rsi: 0.15,
-   volume: 0.20
+   volume: 0.15
 };
 
 Bottom to top:
-- Volume: 20%  — volume bars, colored by candle direction.
+- Volume: 15%  — volume bars, colored by candle direction.
 - RSI:    15%  — RSI line + 70/30 level lines.
 - Price:  45%  — Bollinger (fill + 3 lines), SMA line,
                  VWMA line, candles.
@@ -181,22 +216,23 @@ Bottom to top:
 
 ## Time constants (chart-demo.js)
 
-- `BUCKET_MS = 900000`     — 15-minute candles
-- `WINDOW_MS = 86400000`   — 24-hour visible window
-- `VISUAL_UPDATE_MS = 1000`— 1 Hz outbound tick
-- `PERIOD_MS = 3600000`    — 1-hour rolling window for SMA/VWMA
+- `TARGET_CANDLES = 96` — target visible candle count
+- `TIMEFRAMES` — 1m / 5m / 15m / 1h / 4h / 1d; each entry
+  carries `value` (bucketMs) and `windowMs`
+- `VISUAL_UPDATE_MS = 1000` — 1 Hz outbound tick
+- `MAX_DATA_OPTIONS` — 1d / 7d / 30d / 90d
+- `currentPeriodMs() = 4 * bucketMs` — SMA/VWMA lookback
 
 ## Domain strategy
 
 Default is `expanding`. `sliding` is available for fixed-width
-contexts (e.g., the original table-cell use case, 180×24px).
-`static` freezes the domain.
+contexts. `static` freezes the domain.
 
 `expanding` semantics:
 - `xDomain = [xMin, xMin + dataRange / (1 - padding)]`
 - Data occupies the left `(1 - padding)` of the plot.
 - Right `padding` is empty space reserved for the reference
-  line label and to avoid the newest point hugging the y-axis.
+  line label.
 
 `sliding` semantics:
 - `xDomain = [max(xMin, xMax - windowSize), xMax]`
@@ -207,13 +243,15 @@ contexts (e.g., the original table-cell use case, 180×24px).
 Both workers accept the same message protocol:
 
   Main → Worker
-    { type: 'config', bucketMs, tickMs, windowMs,
+    { type: 'config', bucketMs, tickMs, windowMs, maxData?,
       eventTimeField, indicators, symbol?, stream? }
-    { type: 'seed' }         (simulated only)
+    { type: 'seed' }          (simulated only)
     { type: 'start' }
     { type: 'stop' }
+    { type: 'disconnect' }    (live only)
     { type: 'reset' }
-    { type: 'tick' }         (simulated only, manual step)
+    { type: 'state' }         (query)
+    { type: 'tick' }          (simulated only, manual step)
 
   Worker → Main
     { type: 'seed',  data: [row, ...] }
@@ -230,8 +268,8 @@ Row shape:
 - `bbMean, bbStd, bbUpper, bbLower`  (20-period Bollinger)
 - `rsi`                              (14-period Wilder)
 - `macd, macdSignal, macdHistogram`  (12 / 26 / 9 EMA)
-- `sma`                              (1-hour SMA of close)
-- `vwma`                             (1-hour VWMA, typical price)
+- `sma`                              (4-bucket SMA of close)
+- `vwma`                             (4-bucket VWMA, typical price)
 
 `eventTime` is the last-trade time within the bucket; `openTime`
 is the exact bucket boundary. Rows are keyed on `openTime`. The
@@ -287,25 +325,24 @@ the row) or `source: 'exact'` (uses `row.notional`).
 
 Priority order:
 
-1. `DEFAULT_START_PRICE` in `chart-demo-feed.js` should be
-   `5176795.70` (BTCPHP-scale), not `0.0003619`. One-line fix
-   so the simulated feed's values match the live feed's scale
-   and display cleanly at 2 decimals.
-2. `SYMBOL_DECIMALS` constant at the top of `chart-demo.js`.
-   Replaces the hardcoded `7`s in layer `decimals:` options and
-   `.toFixed(7)` calls. To be sourced from exchange metadata
-   when the symbol selector lands.
-3. Toolbar dropdown for `maxData` (1d / 7d / 30d / 90d).
-   Currently fixed at 7 days.
-4. Symbol selector: cycle `demo | live` and a symbol list
-   (`BTCPHP`, `USDTPHP`, `ETHPHP`). The live worker already
-   reconfigures on `symbol` change; the demo needs the UI.
-5. Update HANDOFF.md — the bucketing/candle-interval work is
-   complete.
+1. Cloudflare Worker for historical seed. When available, both
+   workers' `seed` mechanism carries real rows. The live worker's
+   `buildSeed` is currently absent; it should be reinstated with
+   a Cloudflare-fetched payload, not a synthetic walk.
+2. `SYMBOL_DECIMALS` sourced from exchange metadata. Currently a
+   constant at the top of `chart-demo.js` (value `2`).
+3. `DEFAULT_START_PRICE` in `chart-demo-feed.js` should match
+   live BTCPHP scale. Check whether the demo feed still starts
+   at a tiny value and bump it if so.
+4. Button-level `showLabels` toggle for the ToolBar (independent
+   of `showGroupLabels`). Deferred until the settings panel exists.
 
 Deferred:
 - Indicator registry, composition class, Chart DSL.
 - Single shared DataSeries.
+- Group label `left` position variant (currently `top` only).
+- Status-bar content in the toolbar (via `group.setLabel` or a
+  future `group.setContent`).
 
 ## Conventions for future sessions
 
@@ -333,6 +370,14 @@ Deferred:
 - Band vertical order = order of `_yGroupOrder`, which is the
   order the first layer for each group is added. Register groups
   bottom-first to stack them top-down.
+- Feed workers must not depend on the layer classes. They post
+  rows; the main thread renders.
+- Source selection and feed emission are separate. New sources
+  plug in via `currentSource` and a feed worker that speaks the
+  same protocol; the source dropdown cycles them, the feed button
+  controls the active one.
+- Timeframe changes rebucket from the live worker's buffer.
+  Do not clear the chart on timeframe change.
 
 ## Known refactor candidates (not urgent)
 
@@ -345,15 +390,16 @@ Deferred:
   ~25 lines. Extract `Utils.sampledIntervalPixelWidth`.
 - `_trimTail` is similar across three layers. Extract
   `Utils.findTrimIndex` + `Utils.rangeExtremes`.
+- `updateLastPoint` shares the rescan-on-extreme logic across
+  three layers. Same hoist target as above.
 - `CartesianPlane` should expose `setBandOrder([...])` so
   vertical stacking is decoupled from layer registration order.
-- ReferenceLine's `labelOverflow` could be an option (currently
-  the label flip boundary is `plotRight`, and the annotations
-  group is not clipped, so labels could extend into the right
-  margin).
+- `ReferenceLine` label flip boundary is `plotRight`. Could
+  gain a `labelOverflow` option so labels can extend into the
+  right margin.
 - Crosshair snap dot doesn't have `vector-effect:
-  non-scaling-stroke` while ReferenceLine's pulse does. Cosmetic
-  only at extreme scales.
+  non-scaling-stroke` while ReferenceLine's pulse does.
+  Cosmetic only at extreme scales.
 - Pulse animation keyframes are duplicated between
   `ReferenceLine.css` and `CrosshairLayer.css`. Could move to a
   shared `styles/animations.css` if a third user appears.

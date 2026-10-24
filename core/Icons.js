@@ -130,6 +130,33 @@ const ICONS = {
 		'<path d="M2 12 L6 8 L10 11 L14 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
 		'<circle cx="6" cy="8" r="1.2" fill="currentColor"/>' +
 		'<circle cx="10" cy="11" r="1.2" fill="currentColor"/>' +
+		'</svg>',
+	
+	strategy:
+		'<svg viewBox="0 0 16 16" aria-hidden="true">' +
+		'<path d="M2 12 L6 8 L10 11 L14 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'<circle cx="6" cy="8" r="1.2" fill="currentColor"/>' +
+		'<circle cx="10" cy="11" r="1.2" fill="currentColor"/>' +
+		'</svg>',
+
+	// ─── Dropdown carets ───
+	caretDown:
+		'<svg viewBox="0 0 16 16" aria-hidden="true">' +
+		'<path d="M4 6 L8 10 L12 6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'</svg>',
+
+	caretUp:
+		'<svg viewBox="0 0 16 16" aria-hidden="true">' +
+		'<path d="M4 10 L8 6 L12 10" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'</svg>',
+
+	source:
+		'<svg viewBox="0 0 16 16" aria-hidden="true">' +
+		'<line x1="3" y1="13" x2="3" y2="3" stroke="currentColor" stroke-width="1"/>' +
+		'<line x1="13" y1="13" x2="3" y2="13" stroke="currentColor" stroke-width="1"/>' +
+		'<polyline points="4,11 6,9 8,10 10,7 12,8" ' +
+		'fill="none" stroke="currentColor" stroke-width="1.2" ' +
+		'stroke-linecap="round" stroke-linejoin="round"/>' +
 		'</svg>'
 };
 

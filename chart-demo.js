@@ -14,8 +14,23 @@
 // their layers and expose a uniform dispatch contract:
 //   appendOrUpdate(row, keyFn), setData(rows), remove()
 //
-// The feed worker computes derived fields (macd, rsi, bb*, sma,
-// vwma) from raw trades; the main thread only renders.
+// The feed worker computes derived fields from raw trades; the
+// main thread only renders.
+//
+// Source / feed model:
+//   - `currentSource` ('demo' | 'live') is set by the source
+//     dropdown. It selects which worker is active.
+//   - `feedRunning` mirrors the worker's reported state. It is
+//     updated from the worker's `state` messages, not assumed.
+//   - The feed button starts / pauses the active worker.
+//   - Switching source stops the current feed.
+//   - The reset-data button stops the current feed, clears the
+//     chart, and reseeds. It is an alternative to a browser
+//     refresh for the chart's data.
+//   - The demo worker is created on page load and seeds the
+//     chart. Its timer does not start until the feed button is
+//     pressed.
+//   - The live worker is created lazily on first use.
 // ──────────────────────────────────────────────────────────────
 
 // Core
@@ -27,9 +42,6 @@ import { XAxis } from './axes/XAxis.js';
 import { YAxis } from './axes/YAxis.js';
 
 // Layers
-import { Line } from './layers/Line.js';
-import { Area } from './layers/Area.js';
-import { GhostLine } from './layers/GhostLine.js';
 import { CandleStick } from './layers/CandleStick.js';
 import { ReferenceLine } from './layers/ReferenceLine.js';
 
@@ -54,44 +66,83 @@ import { InfoCard } from './cards/InfoCard.js';
 
 // UI
 import { Button } from './ui/Button.js';
+import { Dropdown } from './ui/Dropdown.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
 // ─── CONSTANTS ───
 
-// ─── DECIMAL PRECISION ───
-// Temporary. Will be sourced from the exchange's symbol
-// metadata once the live symbol selector lands. Until then,
-// every layer that displays or formats numeric values reads
-// from here so there's one place to change.
+// Temporary. Will be sourced from exchange metadata once the
+// live symbol selector lands.
 const SYMBOL_DECIMALS = 2;
 
-const BUCKET_MS = 900000;        // 15-minute candles
-const WINDOW_MS = 86400000;      // 24-hour visible window
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
-const PERIOD_MS = 3600000;       // 1-hour rolling window for SMA / VWMA
 
 const BAND_HEIGHTS = {
 	macd: 0.20,
-	price: 0.45,
+	price: 0.50,
 	rsi: 0.15,
 	volume: 0.15
 };
 
-const INDICATORS = [
-	'macd',
-	'rsi',
-	'bollinger',
-	{ name: 'sma', source: 'close', periodMs: PERIOD_MS },
-	{ name: 'vwma', source: 'exact', periodMs: PERIOD_MS }
+// ─── CONTROL OPTIONS ───
+
+const TARGET_CANDLES = 96;
+
+const TIMEFRAMES = [
+	{ value: 60000, label: '1m', windowMs: TARGET_CANDLES * 60000 },
+	{ value: 300000, label: '5m', windowMs: TARGET_CANDLES * 300000 },
+	{ value: 900000, label: '15m', windowMs: TARGET_CANDLES * 900000 },
+	{ value: 3600000, label: '1h', windowMs: TARGET_CANDLES * 3600000 },
+	{ value: 14400000, label: '4h', windowMs: TARGET_CANDLES * 14400000 },
+	{ value: 86400000, label: '1d', windowMs: TARGET_CANDLES * 86400000 }
 ];
 
+const MAX_DATA_OPTIONS = [
+	{ value: 1 * 86400000, label: '1d' },
+	{ value: 7 * 86400000, label: '7d' },
+	{ value: 30 * 86400000, label: '30d' },
+	{ value: 90 * 86400000, label: '90d' }
+];
+
+const SYMBOL_OPTIONS = [
+	{ value: 'BTCPHP', label: 'BTCPHP' },
+	{ value: 'USDTPHP', label: 'USDTPHP' },
+	{ value: 'ETHPHP', label: 'ETHPHP' }
+];
+
+const SOURCE_OPTIONS = [
+	{ value: 'demo', label: 'Demo' },
+	{ value: 'live', label: 'Live' }
+];
+
+// ─── MUTABLE CONTROL STATE ───
+
+let currentTimeframe = TIMEFRAMES[2];      // 15m default
+let currentMaxData = 7 * 86400000;         // matches plane.maxData
+let currentSymbol = 'BTCPHP';              // default live symbol
+let currentSource = 'demo';                // 'demo' | 'live'
+let feedRunning = false;                   // mirrors the active worker's state
+
+function currentBucketMs() { return currentTimeframe.value; }
+function currentWindowMs() { return currentTimeframe.windowMs; }
+function currentPeriodMs() { return 4 * currentTimeframe.value; }  // 4 buckets
+
+function buildIndicators() {
+	const periodMs = currentPeriodMs();
+	return [
+		'macd',
+		'rsi',
+		'bollinger',
+		{ name: 'sma', source: 'close', periodMs },
+		{ name: 'vwma', source: 'typical', periodMs }
+	];
+}
+
 // ─── BUCKET KEY ───
-// A row's identity within a candle. Two rows with the same key
-// belong to the same bucket; the second replaces the first in
-// place.
+
 function bucketKey(row) {
-	return Math.floor((row.openTime || 0) / BUCKET_MS);
+	return Math.floor((row.openTime || 0) / currentBucketMs());
 }
 
 const xAcc = d => d.openTime;
@@ -104,8 +155,8 @@ const plane = new CartesianPlane({
 	id: 'main-plane',
 	domainStrategy: 'expanding',
 	padding: 0.05,
-	windowSize: WINDOW_MS,  // 24h visible
-	maxData: 7 * 86400000,	// 7 days retained, regardless of window
+	windowSize: currentWindowMs(),
+	maxData: currentMaxData,
 	xScaleType: 'time',
 	autoAdjustY: true
 });
@@ -125,7 +176,7 @@ tooltip.render();
 
 const chartSelection = new ChartSelection({ plane });
 
-// ─── PRICE LAYERS (standalone, not indicators) ───
+// ─── PRICE LAYER ───
 
 const priceChart = new CandleStick({
 	id: 'price-candles',
@@ -141,9 +192,8 @@ const priceChart = new CandleStick({
 	trimTail: true
 });
 
-
 // ─── INDICATORS ───
-// Registered bottom-first so _yGroupOrder stacks them top-down.
+// Registered bottom-fiFrst so _yGroupOrder stacks them top-down.
 // Order: volume, rsi, price, macd.
 
 // 1. Volume — bottom band
@@ -154,9 +204,11 @@ const volume = new Volume({
 	trimTail: true
 });
 
+// Price layer registered after volume, before the price-group
+// overlays that render behind it.
 plane.addLayer(priceChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
 
-// 2. RSI — above volume
+// 2. RSI
 const rsi = new RSI({
 	plane,
 	height: BAND_HEIGHTS.rsi,
@@ -165,11 +217,7 @@ const rsi = new RSI({
 	trimTail: true
 });
 
-// 3. Price band overlays — Bollinger, SMA, VWMA all live in
-// price-group, behind and in front of the candles as configured.
-// Registration order matters: overlays that should render behind
-// the candles register first.
-
+// 3. Price band overlays
 const bollinger = new Bollinger({
 	plane,
 	height: BAND_HEIGHTS.price,
@@ -208,7 +256,6 @@ const macd = new MACD({
 const timeFormat = new Intl.DateTimeFormat("en-US", {
 	hour: '2-digit',
 	minute: '2-digit',
-	second: '2-digit',
 	hour12: false,
 	timeZone: 'Asia/Manila'
 });
@@ -227,7 +274,7 @@ const xAxis = new XAxis({
 
 const priceYAxis = new YAxis({
 	id: 'price-y-axis',
-	label: 'Price / WAP',
+	label: 'Price',
 	orientation: 'right',
 	positionIntent: 'outside',
 	scale: plane.getYScaleForChart(priceChart),
@@ -236,7 +283,6 @@ const priceYAxis = new YAxis({
 	showTicks: true,
 	showTickLabels: true,
 	showLabel: true,
-	tickCount: 10,
 	tickStepMode: 'decimal',
 	showMinorTicks: true,
 	showMicroTicks: true
@@ -253,7 +299,6 @@ const volumeYAxis = new YAxis({
 	showTicks: true,
 	showTickLabels: true,
 	showLabel: true,
-	tickCount: 4,
 	decimals: 0
 });
 
@@ -268,7 +313,7 @@ const macdYAxis = new YAxis({
 	showTicks: true,
 	showTickLabels: true,
 	showLabel: true,
-	tickCount: 4
+	decimals: 0
 });
 
 const rsiYAxis = new YAxis({
@@ -282,7 +327,6 @@ const rsiYAxis = new YAxis({
 	showTicks: true,
 	showTickLabels: true,
 	showLabel: true,
-	tickCount: 4,
 	decimals: 0
 });
 
@@ -359,7 +403,7 @@ plane.addLayer(interaction);
 
 const legendCard = new Legend({
 	id: 'main-legend',
-	title: '🎯 Price Update!!',
+	title: '🎯 Price Update',
 	width: 140,
 	plane,
 	selection: chartSelection,
@@ -392,7 +436,7 @@ const infoCard = new InfoCard({
 	plane,
 	layer: priceChart,
 	title: '📊 Metrics',
-	width: 120
+	width: 140
 });
 cardStrip.addCard(infoCard);
 
@@ -410,19 +454,10 @@ crosshair.onMove = (payload) => {
 };
 
 // ─── HANDLE LIST ───
-// Every indicator handle, plus the standalone price layer. Used
-// by the tick dispatcher and by clearAllCharts. Order doesn't
-// matter here — dispatch is per-handle.
 
 const handles = [priceChart, volume, rsi, bollinger, sma, vwma, macd];
 
-// ─── DATA FEEDS ───
-
-const feed = new Worker('./chart-demo-feed.js', { type: 'module' });
-const liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
-
-let feedRunning = false;
-let liveRunning = false;
+// ─── DATA APPLICATION ───
 
 function applySeed(rows) {
 	for (const h of handles) h.setData(rows);
@@ -434,9 +469,41 @@ function applyTick(row) {
 	plane.update();
 }
 
-// ─── SIMULATED FEED WIRING ───
+// ─── WORKERS ───
+// The demo worker is persistent (created on page load, seeds the
+// chart, timer idle until the feed button is pressed).
+// The live worker is lazy (created on first start).
 
-feed.onmessage = (evt) => {
+const demoWorker = new Worker('./chart-demo-feed.js', { type: 'module' });
+let liveWorker = null;
+
+function ensureLiveWorker() {
+	if (liveWorker) return liveWorker;
+
+	liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
+	liveWorker.onmessage = handleLiveMessage;
+	liveWorker.onerror = (err) => {
+		console.error('[live feed worker]', err.message || err);
+	};
+
+	liveWorker.postMessage({
+		type: 'config',
+		symbol: currentSymbol,
+		stream: 'trade',
+		bucketMs: currentBucketMs(),
+		tickMs: VISUAL_UPDATE_MS,
+		windowMs: currentWindowMs(),
+		maxData: plane.maxData,
+		eventTimeField: 'eventTime',
+		indicators: buildIndicators()
+	});
+
+	return liveWorker;
+}
+
+// ─── WORKER MESSAGE HANDLERS ───
+
+function handleDemoMessage(evt) {
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
 
@@ -448,33 +515,18 @@ feed.onmessage = (evt) => {
 			applyTick(msg.data);
 			break;
 		case 'state':
-			feedRunning = msg.running;
-			autoButton.setIcon(msg.running ? 'stop' : 'play');
-			autoButton.setTooltip(msg.running ? 'Stop auto-append' : 'Auto-append');
+			if (msg.running !== feedRunning) {
+				feedRunning = msg.running;
+				updateUI();
+			}
 			break;
 		case 'error':
-			console.error('[feed]', msg.message);
+			console.error('[demo feed]', msg.message);
 			break;
 	}
-};
+}
 
-feed.onerror = (err) => {
-	console.error('[DataFeed] worker error:', err.message || err);
-};
-
-feed.postMessage({
-	type: 'config',
-	bucketMs: BUCKET_MS,
-	tickMs: VISUAL_UPDATE_MS,
-	windowMs: WINDOW_MS,
-	eventTimeField: 'eventTime',
-	indicators: INDICATORS
-});
-feed.postMessage({ type: 'seed' });
-
-// ─── LIVE FEED WIRING ───
-
-liveWorker.onmessage = (evt) => {
+function handleLiveMessage(evt) {
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
 
@@ -486,35 +538,140 @@ liveWorker.onmessage = (evt) => {
 			applyTick(msg.data);
 			break;
 		case 'state':
-			liveRunning = msg.running;
-			liveButton.setSelected(msg.running);
-			liveButton.setIcon(msg.running ? 'stop' : 'play');
-			liveButton.setTooltip(
-				msg.running
-					? (msg.connected ? 'Disconnect from live feed' : 'Connecting…')
-					: 'Connect to live feed'
+			if (msg.running !== feedRunning) {
+				feedRunning = msg.running;
+				updateUI();
+			}
+			// Tooltip reflects the live worker's connection state.
+			sourceDropdown.setTooltip(
+				msg.connected
+					? 'Source: Live (connected)'
+					: (msg.running ? 'Source: Live (connecting…)' : 'Source: Live')
 			);
 			break;
 		case 'error':
-			console.error('[live]', msg.message);
+			console.error('[live feed]', msg.message);
 			break;
 	}
+}
+
+// ─── DEMO WORKER INITIAL WIRING ───
+
+demoWorker.onmessage = handleDemoMessage;
+demoWorker.onerror = (err) => {
+	console.error('[demo feed worker]', err.message || err);
 };
 
-liveWorker.onerror = (err) => {
-	console.error('[LiveFeed] worker error:', err.message || err);
-};
-
-liveWorker.postMessage({
+demoWorker.postMessage({
 	type: 'config',
-	symbol: 'BTCPHP',
-	stream: 'trade',
-	bucketMs: BUCKET_MS,
+	bucketMs: currentBucketMs(),
 	tickMs: VISUAL_UPDATE_MS,
-	windowMs: WINDOW_MS,
+	windowMs: currentWindowMs(),
 	eventTimeField: 'eventTime',
-	indicators: INDICATORS
+	indicators: buildIndicators()
 });
+demoWorker.postMessage({ type: 'seed' });
+
+// ─── FEED CONTROL ───
+
+function switchSource(newSource) {
+	if (newSource === currentSource) return;
+
+	// Pause the current feed if it's running.
+	if (feedRunning) {
+		stopCurrentWorker();
+		feedRunning = false;
+	}
+
+	// If leaving live, shut down its socket and buffer. The
+	// live worker's `disconnect` message stops emission,
+	// closes the WebSocket, and clears the trade buffer.
+	if (currentSource === 'live' && liveWorker) {
+		liveWorker.postMessage({ type: 'disconnect' });
+	}
+
+	currentSource = newSource;
+
+	if (currentSource === 'live') {
+		ensureLiveWorker();
+	}
+
+	updateUI();
+}
+
+function toggleFeed() {
+	if (feedRunning) {
+		stopCurrentWorker();
+		feedRunning = false;
+	} else {
+		startCurrentWorker();
+		feedRunning = true;
+	}
+	updateUI();
+}
+
+function startCurrentWorker() {
+	if (currentSource === 'demo') {
+		demoWorker.postMessage({ type: 'start' });
+	} else if (currentSource === 'live') {
+		const w = ensureLiveWorker();
+		w.postMessage({
+			type: 'config',
+			symbol: currentSymbol,
+			stream: 'trade',
+			bucketMs: currentBucketMs(),
+			tickMs: VISUAL_UPDATE_MS,
+			windowMs: currentWindowMs(),
+			maxData: plane.maxData,
+			eventTimeField: 'eventTime',
+			indicators: buildIndicators()
+		});
+		w.postMessage({ type: 'start' });
+	}
+}
+
+function stopCurrentWorker() {
+	if (currentSource === 'demo') {
+		demoWorker.postMessage({ type: 'stop' });
+	} else if (currentSource === 'live' && liveWorker) {
+		liveWorker.postMessage({ type: 'stop' });
+	}
+}
+
+function resetData() {
+	// Clear the chart up front. The worker reseeds (demo) or
+	// reconnects with an empty seed (live).
+	for (const h of handles) h.setData([]);
+
+	if (currentSource === 'demo') {
+		demoWorker.postMessage({ type: 'reset' });
+	} else if (currentSource === 'live' && liveWorker) {
+		liveWorker.postMessage({ type: 'reset' });
+	}
+
+	updateUI();
+}
+
+function updateUI() {
+	// Source dropdown
+	sourceDropdown.setValue(currentSource, false);
+
+	// Feed button
+	feedButton.setIcon(feedRunning ? 'stop' : 'play');
+	feedButton.setTooltip(feedRunning ? 'Pause feed' : 'Start feed');
+	feedButton.setSelected(feedRunning);
+
+	// Source-specific tooltip
+	// if (currentSource === 'live') {
+	// 	sourceDropdown.setTooltip('Source: Live');
+	// } else {
+	// 	sourceDropdown.setTooltip('Source: Demo');
+	// }
+
+	// Demo cluster: enabled only when source === 'demo'.
+	const demoEnabled = currentSource === 'demo';
+	for (const btn of demoControls) btn.setDisabled(!demoEnabled);
+}
 
 // ─── TOOLBAR ───
 
@@ -525,7 +682,79 @@ const toolbar = new ToolBar({
 	positionIntent: 'outside'
 });
 
-function cardToggleButton({ id, icon, tooltip, card }) {
+// ─── Viewport controls ───
+
+const panButton = new Button({
+	id: 'mode-pan',
+	icon: 'pan',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Pan mode',
+	selected: true,
+	onClick: () => {
+		plane.setInteractionMode('pan');
+		panButton.setSelected(true);
+		zoomButton.setSelected(false);
+	}
+});
+
+const zoomButton = new Button({
+	id: 'mode-zoom',
+	icon: 'zoom',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Zoom mode',
+	selected: false,
+	onClick: () => {
+		plane.setInteractionMode('zoom');
+		panButton.setSelected(false);
+		zoomButton.setSelected(true);
+	}
+});
+
+const resetViewButton = new Button({
+	id: 'mode-reset-view',
+	icon: 'reset',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Reset view',
+	onClick: () => plane.resetZoom('both')
+});
+
+const crosshairButton = (() => {
+	const btn = new Button({
+		id: 'toggle-crosshair',
+		icon: 'crosshair',
+		size: 'sm',
+		variant: 'ghost',
+		tooltip: 'Toggle crosshair',
+		selected: !!plane.getLayer(crosshair.id),
+		onClick: () => {
+			if (plane.getLayer(crosshair.id)) plane.removeLayer(crosshair);
+			else plane.addLayer(crosshair);
+			btn.setSelected(!!plane.getLayer(crosshair.id));
+		}
+	});
+	return btn;
+})();
+
+const fullscreenButton = new Button({
+	id: 'toggle-fullscreen',
+	icon: 'fullscreen',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Enter fullscreen',
+	onClick: () => plane.toggleFullscreen()
+});
+
+plane.events.on(Events.FULLSCREEN_CHANGED, (data) => {
+	fullscreenButton.setIcon(data.fullscreen ? 'fullscreenExit' : 'fullscreen');
+	fullscreenButton.setTooltip(data.fullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
+});
+
+// ─── View toggles (cards + axes) ───
+
+function makeCardToggle({ id, icon, tooltip, card }) {
 	const btn = new Button({
 		id,
 		icon,
@@ -543,12 +772,12 @@ function cardToggleButton({ id, icon, tooltip, card }) {
 	return btn;
 }
 
-function makeLayerToggle({ id, icon, tooltip, variant = 'secondary', layer }) {
+function makeAxisToggle({ id, icon, tooltip, layer }) {
 	const btn = new Button({
 		id,
 		icon,
 		size: 'sm',
-		variant,
+		variant: 'secondary',
 		tooltip,
 		selected: !!plane.getLayer(layer.id),
 		onClick: () => {
@@ -560,126 +789,195 @@ function makeLayerToggle({ id, icon, tooltip, variant = 'secondary', layer }) {
 	return btn;
 }
 
-// ─── Interaction mode ───
-const panButton = new Button({
-	id: 'mode-pan',
-	icon: 'pan',
-	size: 'sm',
-	variant: 'ghost',
-	tooltip: 'Pan mode (drag to move)',
-	selected: true,
-	onClick: () => {
-		plane.setInteractionMode('pan');
-		panButton.setSelected(true);
-		zoomButton.setSelected(false);
-	}
-});
-
-const zoomButton = new Button({
-	id: 'mode-zoom',
-	icon: 'zoom',
-	size: 'sm',
-	variant: 'ghost',
-	tooltip: 'Zoom mode (drag a rectangle)',
-	selected: false,
-	onClick: () => {
-		plane.setInteractionMode('zoom');
-		panButton.setSelected(false);
-		zoomButton.setSelected(true);
-	}
-});
-
-const resetButton = new Button({
-	id: 'mode-reset',
-	icon: 'reset',
-	size: 'sm',
-	variant: 'ghost',
-	tooltip: 'Reset zoom (or double-click the chart)',
-	onClick: () => plane.resetZoom('both')
-});
-
-// ─── Layer toggles ───
-const timeAxisButton = makeLayerToggle({
-	id: 'toggle-time-axis',
-	icon: 'axisTime',
-	tooltip: 'Show/Hide Time Axis',
-	layer: xAxis
-});
-
-const priceAxisButton = makeLayerToggle({
-	id: 'toggle-price-axis',
-	icon: 'axisValue',
-	tooltip: 'Show/Hide Price Y-Axis',
-	layer: priceYAxis
-});
-
-const volumeAxisButton = makeLayerToggle({
-	id: 'toggle-volume-axis',
-	icon: 'axisValue',
-	tooltip: 'Show/Hide Volume Y-Axis',
-	layer: volumeYAxis
-});
-
-const macdAxisButton = makeLayerToggle({
-	id: 'toggle-macd-axis',
-	icon: 'axisValue',
-	tooltip: 'Show/Hide MACD Y-Axis',
-	layer: macdYAxis
-});
-
-const crosshairButton = makeLayerToggle({
-	id: 'toggle-crosshair',
-	icon: 'crosshair',
-	tooltip: 'Show/Hide Crosshair',
-	variant: 'ghost',
-	layer: crosshair
-});
-
-// ─── Card toggles ───
-const legendButton = cardToggleButton({
+const legendButton = makeCardToggle({
 	id: 'toggle-legend',
 	icon: 'legend',
-	tooltip: 'Show/Hide Legend',
+	tooltip: 'Toggle legend',
 	card: legendCard
 });
 
-const ohlcButton = cardToggleButton({
+const ohlcButton = makeCardToggle({
 	id: 'toggle-ohlc',
 	icon: 'ohlc',
-	tooltip: 'Show/Hide OHLC',
+	tooltip: 'Toggle OHLC',
 	card: ohlcCard
 });
 
-const infoButton = cardToggleButton({
+const infoButton = makeCardToggle({
 	id: 'toggle-info',
 	icon: 'info',
-	tooltip: 'Show/Hide Metrics',
+	tooltip: 'Toggle metrics',
 	card: infoCard
 });
 
-// ─── Fullscreen ───
-const fullscreenButton = new Button({
-	id: 'toggle-fullscreen',
-	icon: 'fullscreen',
-	size: 'sm',
-	variant: 'ghost',
-	tooltip: 'Enter Fullscreen',
-	onClick: () => plane.toggleFullscreen()
+const timeAxisButton = makeAxisToggle({
+	id: 'toggle-time-axis',
+	icon: 'axisTime',
+	tooltip: 'Toggle time axis',
+	layer: xAxis
 });
 
-plane.events.on(Events.FULLSCREEN_CHANGED, (data) => {
-	fullscreenButton.setIcon(data.fullscreen ? 'fullscreenExit' : 'fullscreen');
-	fullscreenButton.setTooltip(data.fullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen');
+const priceAxisButton = makeAxisToggle({
+	id: 'toggle-price-axis',
+	icon: 'axisValue',
+	tooltip: 'Toggle price axis',
+	layer: priceYAxis
+});
+
+const volumeAxisButton = makeAxisToggle({
+	id: 'toggle-volume-axis',
+	icon: 'axisValue',
+	tooltip: 'Toggle volume axis',
+	layer: volumeYAxis
+});
+
+const macdAxisButton = makeAxisToggle({
+	id: 'toggle-macd-axis',
+	icon: 'axisValue',
+	tooltip: 'Toggle MACD axis',
+	layer: macdYAxis
+});
+
+// ─── Data controls ───
+
+const timeframeDropdown = new Dropdown({
+	id: 'ctrl-timeframe',
+	icon: 'axisTime',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Timeframe',
+	options: TIMEFRAMES,
+	value: currentTimeframe.value,
+	onSelect: (value) => {
+		const tf = TIMEFRAMES.find(t => t.value === value);
+		if (!tf) return;
+
+		currentTimeframe = tf;
+		plane.windowSize = tf.windowMs;
+		plane.maxData = Math.max(currentMaxData, 7 * tf.windowMs);
+
+		if (currentSource === 'demo') {
+			// Demo worker reseeds from scratch with the new
+			// bucketMs. The `config` message alone updates the
+			// indicator set; the explicit `seed` message triggers
+			// a fresh synthetic history. The chart clears on
+			// applySeed, then populates.
+			demoWorker.postMessage({
+				type: 'config',
+				bucketMs: currentBucketMs(),
+				tickMs: VISUAL_UPDATE_MS,
+				windowMs: currentWindowMs(),
+				eventTimeField: 'eventTime',
+				indicators: buildIndicators()
+			});
+			demoWorker.postMessage({ type: 'seed' });
+		} else if (currentSource === 'live') {
+			// Live worker rebuckets from its trade buffer and
+			// posts a fresh seed internally. No stop, no clear.
+			// The chart smoothly swaps from old timeframe to new.
+			ensureLiveWorker().postMessage({
+				type: 'config',
+				symbol: currentSymbol,
+				stream: 'trade',
+				bucketMs: currentBucketMs(),
+				tickMs: VISUAL_UPDATE_MS,
+				windowMs: currentWindowMs(),
+				maxData: plane.maxData,
+				eventTimeField: 'eventTime',
+				indicators: buildIndicators()
+			});
+		}
+
+		// Do NOT clear the chart or touch feedRunning. The worker
+		// handles the rebucket + reseed internally.
+		updateUI();
+	}
+});
+
+const maxDataDropdown = new Dropdown({
+	id: 'ctrl-maxdata',
+	icon: 'strategy',
+	size: 'sm',
+	variant: 'success',
+	tooltip: 'History depth',
+	options: MAX_DATA_OPTIONS,
+	value: currentMaxData,
+	onSelect: (value) => {
+		currentMaxData = value;
+		const effective = Math.max(value, 7 * currentWindowMs());
+		plane.maxData = effective;
+		plane.update();
+	}
+});
+
+const symbolDropdown = new Dropdown({
+	id: 'ctrl-symbol',
+	icon: 'legend',
+	size: 'sm',
+	variant: 'secondary',
+	tooltip: 'Symbol',
+	placeholder: 'Symbol',
+	options: SYMBOL_OPTIONS,
+	value: currentSymbol,
+	onSelect: (value) => {
+		currentSymbol = value;
+		if (currentSource === 'live' && liveWorker) {
+			// Live worker detects the symbol change, disconnects,
+			// clears its trade buffer, reconnects, and posts an
+			// empty seed. The chart clears on applySeed.
+			liveWorker.postMessage({
+				type: 'config',
+				symbol: value,
+				stream: 'trade',
+				bucketMs: currentBucketMs(),
+				tickMs: VISUAL_UPDATE_MS,
+				windowMs: currentWindowMs(),
+				maxData: plane.maxData,
+				eventTimeField: 'eventTime',
+				indicators: buildIndicators()
+			});
+		}
+	}
+});
+
+const sourceDropdown = new Dropdown({
+	id: 'ctrl-source',
+	icon: 'source',
+	size: 'sm',
+	variant: 'ghost',
+	tooltip: 'Source',
+	options: SOURCE_OPTIONS,
+	value: currentSource,
+	onSelect: (value) => switchSource(value)
+});
+
+const feedButton = new Button({
+	id: 'ctrl-feed',
+	icon: 'play',
+	size: 'sm',
+	variant: 'success',
+	tooltip: 'Start feed',
+	onClick: () => toggleFeed()
+});
+
+const resetDataButton = new Button({
+	id: 'ctrl-reset-data',
+	icon: 'reset',
+	size: 'sm',
+	variant: 'secondary',
+	tooltip: 'Reset data',
+	onClick: () => resetData()
 });
 
 // ─── Demo controls ───
+
 const addPointButton = new Button({
 	id: 'ctrl-add-point',
 	icon: 'add',
 	size: 'sm',
 	variant: 'primary',
-	tooltip: '+ Add Point',
-	onClick: () => appendPoint()
+	tooltip: 'Add point',
+	onClick: () => demoWorker.postMessage({ type: 'tick' })
 });
 
 const addBatchButton = new Button({
@@ -687,147 +985,62 @@ const addBatchButton = new Button({
 	icon: 'batch',
 	size: 'sm',
 	variant: 'primary',
-	tooltip: '+ Add 5',
+	tooltip: 'Add 5 points',
 	onClick: () => {
-		for (let i = 0; i < 5; i++) feed.postMessage({ type: 'tick' });
+		for (let i = 0; i < 5; i++) demoWorker.postMessage({ type: 'tick' });
 	}
 });
 
-const resetChartsButton = new Button({
-	id: 'ctrl-reset',
-	icon: 'reset',
-	size: 'sm',
-	variant: 'secondary',
-	tooltip: 'Reset charts',
-	onClick: () => resetCharts()
-});
-
-const autoButton = new Button({
-	id: 'ctrl-auto',
-	icon: 'play',
-	size: 'sm',
-	variant: 'danger',
-	tooltip: 'Stop auto-append',
-	onClick: () => toggleAuto()
-});
-
-const liveButton = new Button({
-	id: 'toggle-live',
-	icon: 'play',
-	size: 'sm',
-	variant: 'ghost',
-	tooltip: 'Connect to live feed',
-	selected: false,
-	onClick: () => {
-		clearAllCharts();
-
-		if (liveRunning) {
-			liveWorker.postMessage({ type: 'stop' });
-			feed.postMessage({ type: 'reset' });
-		} else {
-			feed.postMessage({ type: 'stop' });
-			feedRunning = false;
-			autoButton.setIcon('play');
-			autoButton.setTooltip('Auto-append');
-			liveWorker.postMessage({ type: 'start' });
-		}
-	}
-});
-
-const MAX_DATA_OPTIONS = [
-	{ ms: 1 * 86400000, label: '1d' },
-	{ ms: 7 * 86400000, label: '7d' },
-	{ ms: 30 * 86400000, label: '30d' },
-	{ ms: 90 * 86400000, label: '90d' }
-];
-let maxDataIndex = 1;    // 7d default
-plane.maxData = MAX_DATA_OPTIONS[maxDataIndex].ms;
-
-const historyButton = new Button({
-	id: 'ctrl-history',
-	icon: 'strategy',
-	label: MAX_DATA_OPTIONS[maxDataIndex].label,
-	size: 'sm',
-	variant: 'success',
-	tooltip: `History: ${MAX_DATA_OPTIONS[maxDataIndex].label}`,
-	onClick: () => {
-		maxDataIndex = (maxDataIndex + 1) % MAX_DATA_OPTIONS.length;
-		const opt = MAX_DATA_OPTIONS[maxDataIndex];
-		plane.maxData = opt.ms;
-		historyButton.setLabel(opt.label);
-		historyButton.setTooltip(`History: ${opt.label}`);
-		plane.update();
-	}
-});
+const demoControls = [addPointButton, addBatchButton];
 
 // ─── Toolbar registration ───
-toolbar.addItem(crosshairButton);
-toolbar.addItem(panButton);
-toolbar.addItem(zoomButton);
-toolbar.addItem(resetButton);
-toolbar.addItem(timeAxisButton);
-toolbar.addItem(priceAxisButton);
-toolbar.addItem(volumeAxisButton);
-toolbar.addItem(macdAxisButton);
-toolbar.addItem(legendButton);
-toolbar.addItem(ohlcButton);
-toolbar.addItem(infoButton);
-toolbar.addItem(fullscreenButton);
 
-toolbar.addItem(addPointButton);
-toolbar.addItem(addBatchButton);
-toolbar.addItem(resetChartsButton);
-toolbar.addItem(autoButton);
+const toolGroup = toolbar.getGroup('tool');
+toolGroup.addItem(crosshairButton);
+toolGroup.addItem(panButton);
+toolGroup.addItem(zoomButton);
+toolGroup.addItem(resetViewButton);
+toolGroup.addItem(fullscreenButton);
 
-toolbar.addItem(liveButton);
+const viewGroup = toolbar.addGroup({ id: 'view', label: 'View' });
+viewGroup.addItem(legendButton);
+viewGroup.addItem(ohlcButton);
+viewGroup.addItem(infoButton);
+viewGroup.addItem(timeAxisButton);
+viewGroup.addItem(priceAxisButton);
+viewGroup.addItem(volumeAxisButton);
+viewGroup.addItem(macdAxisButton);
+
+const dataGroup = toolbar.addGroup({ id: 'data', label: 'Data' });
+dataGroup.addItem(symbolDropdown);
+dataGroup.addItem(timeframeDropdown);
+dataGroup.addItem(maxDataDropdown);
+dataGroup.addItem(sourceDropdown);
+dataGroup.addItem(feedButton);
+dataGroup.addItem(resetDataButton);
+
+const demoGroup = toolbar.addGroup({ id: 'demo', label: 'Demo' });
+demoGroup.addItem(addPointButton);
+demoGroup.addItem(addBatchButton);
 
 plane.addLayer(toolbar);
 plane.addLayer(cardStrip);
 
+// ─── Initial UI sync ───
+
+updateUI();
+
 plane.update();
-
-// ─── DATA MUTATION ───
-
-function appendPoint() {
-	feed.postMessage({ type: 'tick' });
-}
-
-function clearAllCharts() {
-	for (const h of handles) h.setData([]);
-	plane.update();
-}
-
-function resetCharts() {
-	clearAllCharts();
-	feed.postMessage({ type: 'reset' });
-	feedRunning = false;
-	autoButton.setIcon('play');
-	autoButton.setTooltip('Auto-append');
-}
-
-// ─── DEMO CONTROLS ───
-
-function toggleAuto() {
-	if (feedRunning) {
-		feed.postMessage({ type: 'stop' });
-		feedRunning = false;
-		autoButton.setIcon('play');
-		autoButton.setTooltip('Auto-append');
-	} else {
-		feed.postMessage({ type: 'start' });
-		feedRunning = true;
-		autoButton.setIcon('stop');
-		autoButton.setTooltip('Stop auto-append');
-	}
-}
 
 // ─── KEYBOARD SHORTCUTS ───
 
 document.addEventListener('keydown', (e) => {
 	if (e.key === ' ' || e.key === 'Space') {
 		e.preventDefault();
-		toggleAuto();
+		toggleFeed();
 	}
-	if (e.key === 'a' || e.key === 'A') appendPoint();
-	if (e.key === 'r' || e.key === 'R') resetCharts();
+	if (e.key === 'a' || e.key === 'A') {
+		if (currentSource === 'demo') demoWorker.postMessage({ type: 'tick' });
+	}
+	if (e.key === 'r' || e.key === 'R') resetData();
 });

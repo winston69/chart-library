@@ -1,24 +1,19 @@
 # HANDOFF — Candle interval, bucketing, and live-candle updates
 
-Status: not started. Spec written, no code changed yet.
-Prerequisite: read SESSION.md first for architecture and conventions.
+Status: **resolved.** Completed in session 2026-10-24.
 
-## The problem
+## The original problem
 
-The chart does not behave like a standard trading chart. Three
-distinct issues, all interacting:
+Three interacting issues:
 
-1. The candle interval and the sliding window are the same
-   duration (15 minutes each). Only one candle fits on screen.
-2. The feeds emit one row per tick, not one row per candle. So
-   every tick draws a new candle instead of updating the current
+1. The candle interval and the sliding window were the same
+   duration (15 minutes each). Only one candle fit on screen.
+2. The feeds emitted one row per tick, not one row per candle.
+   Every tick drew a new candle instead of updating the current
    one.
-3. `appendPoint` always pushes. There is no "replace the last row"
-   path, so even with the right interval, the live candle keeps
-   accumulating as new rows.
-
-Result: `CandleStick` shows ~16 bars and the candles do not
-correspond to any meaningful time interval.
+3. `appendPoint` always pushed. There was no "replace the last
+   row" path, so even with the right interval, the live candle
+   kept accumulating as new rows.
 
 ## The target behavior
 
