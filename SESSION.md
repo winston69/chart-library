@@ -202,7 +202,7 @@ Layer behavior
 
 const BAND_HEIGHTS = {
    macd: 0.20,
-   price: 0.45,
+   price: 0.50,
    rsi: 0.15,
    volume: 0.15
 };
@@ -210,7 +210,7 @@ const BAND_HEIGHTS = {
 Bottom to top:
 - Volume: 15%  — volume bars, colored by candle direction.
 - RSI:    15%  — RSI line + 70/30 level lines.
-- Price:  45%  — Bollinger (fill + 3 lines), SMA line,
+- Price:  50%  — Bollinger (fill + 3 lines), SMA line,
                  VWMA line, candles.
 - MACD:   20%  — histogram + MACD line + signal line.
 
