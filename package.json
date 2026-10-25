@@ -4,6 +4,9 @@
 	"type": "module",
 	"description": "Primitive-layer chart library. Compose indicators from single-purpose layers.",
 	"license": "MIT",
+	"engines": {
+		"node": ">=18"
+	},
 	"main": "index.js",
 	"files": [
 		"axes/",
@@ -18,6 +21,7 @@
 	],
 	"scripts": {
 		"dev": "node server.js",
-		"demo": "node server.js"
+		"demo": "node server.js",
+		"test": "node --test"
 	}
 }
