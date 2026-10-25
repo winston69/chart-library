@@ -40,6 +40,25 @@ const server = http.createServer((req, res) => {
 		return; // Exit early, we handled the request
 	}
 
+	if (req.url.startsWith('/api/klines')) {
+		// Forward the request to Coins.ph
+		const targetUrl = `https://api.pro.coins.ph/openapi/quote/v1/klines${req.url.replace('/api/klines', '')}`;
+		console.log("api:", targetUrl);
+
+		https.get(targetUrl, (apiRes) => {
+			res.writeHead(apiRes.statusCode, {
+				'Access-Control-Allow-Origin': '*',
+				'Content-Type': 'application/json'
+			});
+			apiRes.pipe(res);
+		}).on('error', (err) => {
+			console.error('Proxy Error:', err.message);
+			res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
+			res.end(JSON.stringify({ error: 'Failed to fetch from exchange' }));
+		});
+		return;
+	}
+
 	// ─── 2. Serve Static Files ───
 	// Default to index.html if root is requested
 	let filePath = path.join(ROOT, req.url === '/' ? 'index.html' : req.url);
@@ -69,4 +88,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
 	console.log(`✅ Server running at http://localhost:${PORT}`);
 	console.log(`✅ Proxying exchange API at http://localhost:${PORT}/api/trades`);
+	console.log(`✅ Proxying exchange API at http://localhost:${PORT}/api/klines`);
 });
