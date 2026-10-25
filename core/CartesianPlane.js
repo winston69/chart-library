@@ -22,6 +22,7 @@ import { CSS } from './CSS.js';
 import { Utils } from './Utils.js';
 import { Scale } from './Scale.js';
 import { Events, EventEmitter } from './Events.js';
+import { calculateBandLayout, calculateMargins, calculatePlotArea } from './ChartLayout.js';
 
 const css = CSS.cartesianPlane;
 
@@ -424,10 +425,10 @@ export class CartesianPlane {
 	// PLOT AREA
 	// ──────────────────────────────────────────────────────────
 
-	get plotLeft() { return this.margins.left; }
-	get plotRight() { return this.width - this.margins.right; }
-	get plotTop() { return this.margins.top; }
-	get plotBottom() { return this.height - this.margins.bottom; }
+	get plotLeft() { return calculatePlotArea(this.width, this.height, this.margins).left; }
+	get plotRight() { return calculatePlotArea(this.width, this.height, this.margins).right; }
+	get plotTop() { return calculatePlotArea(this.width, this.height, this.margins).top; }
+	get plotBottom() { return calculatePlotArea(this.width, this.height, this.margins).bottom; }
 	get plotWidth() { return this.plotRight - this.plotLeft; }
 	get plotHeight() { return this.plotBottom - this.plotTop; }
 
@@ -438,16 +439,7 @@ export class CartesianPlane {
 	getPlotArea() {
 		if (this._plotAreaCache !== null) return this._plotAreaCache;
 
-		const left = this.margins.left;
-		const right = this.width - this.margins.right;
-		const top = this.margins.top;
-		const bottom = this.height - this.margins.bottom;
-
-		this._plotAreaCache = {
-			left, right, top, bottom,
-			width: right - left,
-			height: bottom - top
-		};
+		this._plotAreaCache = calculatePlotArea(this.width, this.height, this.margins);
 		return this._plotAreaCache;
 	}
 
@@ -1327,7 +1319,7 @@ export class CartesianPlane {
 	 * @returns {boolean} Whether the margins actually changed
 	 */
 	_recalculateAllMargins() {
-		let top = 0, bottom = 0, left = 0, right = 0;
+		const requests = [];
 		const index = this._marginRequesters;
 		const layers = this._layers;
 
@@ -1337,14 +1329,10 @@ export class CartesianPlane {
 			const layer = entry.instance;
 			if (typeof layer.getMarginRequest !== 'function') continue;
 			const req = layer.getMarginRequest();
-			if (req) {
-				if (req.top > top) top = req.top;
-				if (req.bottom > bottom) bottom = req.bottom;
-				if (req.left > left) left = req.left;
-				if (req.right > right) right = req.right;
-			}
+			if (req) requests.push(req);
 		}
 
+		const { top, bottom, left, right } = calculateMargins(requests);
 		const old = this.margins;
 		const changed = old.top !== top || old.bottom !== bottom ||
 			old.left !== left || old.right !== right;
@@ -1368,9 +1356,6 @@ export class CartesianPlane {
 	 * YGROUP_DOMAIN_CHANGED per group.
 	 */
 	_computeYGroupLayout() {
-		const plotHeight = this.plotHeight;
-		if (plotHeight <= 0) return;
-
 		const yGroups = this._yGroups;
 		const yGroupOrder = this._yGroupOrder;
 
@@ -1381,45 +1366,41 @@ export class CartesianPlane {
 		}
 		if (groups.length === 0) return;
 
-		let total = 0;
-		for (let i = 0, len = groups.length; i < len; i++) {
-			const group = groups[i];
-			let h = group._userHeight !== undefined
-				? group._userHeight
-				: (group.rows[0] ? group.rows[0].height : (group.height || 0.3));
-			if (!isFinite(h) || h <= 0) h = 0.3;
-			group._normalizedHeight = h;
-			total += h;
-		}
-
-		const scale = 1 / total;
-		let yOffset = this.plotBottom;
+		const bandLayout = calculateBandLayout({
+			width: this.width,
+			height: this.height,
+			margins: this.margins,
+			bands: groups.map(group => ({
+				id: group.id,
+				height: group._userHeight !== undefined
+					? group._userHeight
+					: (group.rows[0] ? group.rows[0].height : (group.height || 0.3))
+			}))
+		});
+		if (bandLayout.height <= 0) return;
 
 		const plotLeft = this.plotLeft;
 		const plotWidth = this.plotWidth;
 		const bandGroups = this._elements.bandGroups;
 		const clipRects = this._clipRects;
 
-		for (let i = 0, len = groups.length; i < len; i++) {
+		for (let i = 0, len = bandLayout.bands.length; i < len; i++) {
 			const group = groups[i];
-			const heightFraction = group._normalizedHeight * scale;
-			const rowHeight = plotHeight * heightFraction;
-			const yTop = yOffset - rowHeight;
-
-			group._yTop = yTop;
-			group._yBottom = yOffset;
-			group._yRange = [yOffset, yTop];
-			group._heightPx = rowHeight;
-			group._heightFraction = heightFraction;
-			yOffset = yTop;
+			const band = bandLayout.bands[i];
+			group._normalizedHeight = band.normalizedHeight;
+			group._yTop = band.top;
+			group._yBottom = band.bottom;
+			group._yRange = band.range;
+			group._heightPx = band.height;
+			group._heightFraction = band.heightFraction;
 
 			const bandEl = bandGroups[group.id];
 			if (bandEl) {
 				const bg = bandEl.firstChild;
 				if (bg) {
 					SVG.set(bg, {
-						x: plotLeft, y: yTop,
-						width: plotWidth, height: rowHeight
+						x: plotLeft, y: band.top,
+						width: plotWidth, height: band.height
 					});
 				}
 			}
@@ -1427,8 +1408,8 @@ export class CartesianPlane {
 			const clipRect = clipRects[group.id];
 			if (clipRect) {
 				SVG.set(clipRect, {
-					x: plotLeft, y: yTop,
-					width: plotWidth, height: rowHeight
+					x: plotLeft, y: band.top,
+					width: plotWidth, height: band.height
 				});
 			}
 		}

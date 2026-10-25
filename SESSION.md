@@ -113,6 +113,18 @@ Indicator computers (worker-side, pure math):
 
 ## Recent cleanups
 
+### Session 2026-10-26
+
+Architectural weight — layout boundary
+- Extracted pure margin aggregation, plot-bound calculations, and
+  proportional y-group band geometry into `core/ChartLayout.js`.
+- `CartesianPlane.js` delegates geometry to the module and retains
+  DOM updates, layer lifecycle, render scheduling, and events.
+- Added `tests/layout.test.js` for margin subtraction, zero-height
+  plots, and band ratios/order.
+- Phase 3 is complete. Domain computation and plane coordination
+  remain in `CartesianPlane.js`.
+
 ### Session 2026-10-25
 
 Live feed & local proxy

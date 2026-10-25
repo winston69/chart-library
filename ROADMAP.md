@@ -68,6 +68,11 @@ undocumented knowledge.
 
 ## Phase 3: Architectural Weight
 
+**Status: Complete (2026-10-26).** Layout math now lives in the DOM-free
+`core/ChartLayout.js` module, is covered by Node unit tests, and is consumed by
+`CartesianPlane.js`; the plane retains DOM updates, layer lifecycle, events,
+and domain computation.
+
 Reduce the central responsibility of `CartesianPlane.js` without weakening
 its role as the chart coordinator. Make the split in tested, behavior-preserving
 steps rather than moving DOM and state wholesale.
@@ -90,9 +95,9 @@ steps rather than moving DOM and state wholesale.
 5. Retain integration tests for plane-to-layer behavior and use the layout
    unit tests to cover edge cases that do not need a browser.
 
-**Exit criteria:** layout calculations are independently testable, existing
-plane behavior is preserved, and the plane's remaining responsibilities have
-clear boundaries rather than merely being relocated.
+**Exit criteria:** Complete. Layout calculations are independently testable,
+existing plane behavior is preserved, and the plane's remaining
+responsibilities have clear boundaries rather than merely being relocated.
 
 ## Phase 4: Generalization (Optional)
 
