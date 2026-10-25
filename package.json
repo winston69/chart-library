@@ -17,7 +17,7 @@
 		"index.css"
 	],
 	"scripts": {
-		"dev": "npx serve . -l 8000",
-		"demo": "npx serve . -l 8000"
+		"dev": "node server.js",
+		"demo": "node server.js"
 	}
 }

@@ -1,7 +1,7 @@
 # SESSION
 
 Project: multi-band chart library + demo.
-Last update: 2026-10-24.
+Last update: 2026-10-25.
 
 ## Purpose of this file
 
@@ -106,8 +106,29 @@ Indicator computers (worker-side, pure math):
     `currentSource` picks which worker is active; `feedRunning`
     mirrors the active worker's emission state. The source
     dropdown selects; the feed button starts/pauses.
+13. Live data fetching is split: a local Node proxy (`server.js`)
+    fetches the REST seed and serves it with CORS headers; the
+    worker connects to the WebSocket for live updates. Do not
+    fetch the exchange REST API directly from the browser.
 
 ## Recent cleanups
+
+### Session 2026-10-25
+
+Live feed & local proxy
+- Added `server.js` (zero-dependency Node `http`/`https` server)
+  to serve static files and proxy `/api/trades` to
+  `api.pro.coins.ph`, injecting CORS headers.
+- `package.json` `dev`/`demo` scripts switched from `npx serve`
+  to `node server.js`.
+- Live worker fetches 1000 historical trades via the local
+  proxy on `start()`, using `symbol` from the current config.
+- Removed `SortedQueue.js`. The live worker now processes the
+  REST seed synchronously inside `fetchHistoricalSeed()` using
+  an `isSeeding` flag to suppress outbound ticks, then emits
+  one `seed` message with all rebucketed rows.
+- `handleConfig` still rebuckets from `tradeBuffer` on
+  timeframe changes without re-fetching.
 
 ### Session 2026-10-24
 
@@ -326,9 +347,10 @@ the row) or `source: 'exact'` (uses `row.notional`).
 Priority order:
 
 1. Cloudflare Worker for historical seed. When available, both
-   workers' `seed` mechanism carries real rows. The live worker's
-   `buildSeed` is currently absent; it should be reinstated with
-   a Cloudflare-fetched payload, not a synthetic walk.
+   workers' `seed` mechanism carries real rows. The live worker
+   currently fetches 1000 trades via the local proxy; this
+   should eventually be replaced by a Cloudflare-fetched
+   historical kline payload for deeper history.
 2. `SYMBOL_DECIMALS` sourced from exchange metadata. Currently a
    constant at the top of `chart-demo.js` (value `2`).
 3. `DEFAULT_START_PRICE` in `chart-demo-feed.js` should match
@@ -378,6 +400,8 @@ Deferred:
   controls the active one.
 - Timeframe changes rebucket from the live worker's buffer.
   Do not clear the chart on timeframe change.
+- Live data: use the local proxy (`/api/trades`) for REST seed
+  fetches. Do not hit the exchange API directly from the browser.
 
 ## Known refactor candidates (not urgent)
 

@@ -1,6 +1,6 @@
-# HANDOFF — Candle interval, bucketing, and live-candle updates
+# HANDOFF — Live feed, bucketing, and seed architecture
 
-Status: **resolved.** Completed in session 2026-10-24.
+Status: **resolved.** Completed in session 2026-10-25.
 
 ## The original problem
 

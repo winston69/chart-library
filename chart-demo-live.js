@@ -128,6 +128,8 @@ const MAX_TRADES = 200000;
 // ─── Outbound tick throttle ───
 let lastTickAt = 0;
 
+let isSeeding = false;
+
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
@@ -266,7 +268,9 @@ function emitTick(isNewBucket) {
 }
 
 function maybeEmitTick(force) {
-	if (!emitting) return;
+	// Do nothing if we are currently building the initial chart history
+	if (!emitting || isSeeding) return;
+
 	const now = Date.now();
 	if (force || now - lastTickAt >= tickMs) {
 		emitTick(force);
@@ -301,16 +305,13 @@ function connect() {
 
 	ws.onmessage = (event) => {
 		let payload;
-		try { payload = JSON.parse(event.data); }
-		catch { return; }
+		try { payload = JSON.parse(event.data); } catch { return; }
 
 		if (payload.result !== undefined && payload.id !== undefined) return;
-
 		if (payload.code !== undefined && payload.msg !== undefined) {
 			postError(`stream error: ${payload.msg}`);
 			return;
 		}
-
 		if (payload.e !== 'trade') return;
 
 		const price = Number(payload.p);
@@ -319,33 +320,8 @@ function connect() {
 
 		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)) return;
 
-		// Record the trade in the buffer regardless of emission.
-		tradeBuffer.push({ price, qty: quantity, time: tradeTime });
-		trimBuffer(tradeTime);
-
-		// Open the initial bucket on the very first trade.
-		if (lastPrice === null) {
-			lastPrice = price;
-			const openTime = floorToBucket(tradeTime);
-			openBucket(openTime, price, tradeTime);
-		}
-
-		lastPrice = price;
-
-		const tradeBucket = floorToBucket(tradeTime);
-		let isNewBucket = false;
-
-		if (!currentBucket) {
-			openBucket(tradeBucket, price, tradeTime);
-			isNewBucket = true;
-		} else if (tradeBucket > currentBucket.openTime) {
-			currentBucket = null;
-			openBucket(tradeBucket, price, tradeTime);
-			isNewBucket = true;
-		}
-
-		foldTrade(currentBucket, price, quantity, tradeTime);
-		maybeEmitTick(isNewBucket);
+		// Pass directly to the processor
+		processTrade({ price, qty: quantity, time: tradeTime });
 	};
 
 	ws.onerror = () => {
@@ -463,24 +439,20 @@ function start() {
 	if (emitting) return;
 	emitting = true;
 
-	// If not connected, connect first. The buffer may be empty.
 	if (!connected) {
-		// Ensure indicator state matches the current config.
 		indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
-		if (tradeBuffer.length > 0) {
-			// Rebuild current bucket from the buffer so the seed
-			// is consistent.
-			const rows = rebucketFromBuffer();
-			self.postMessage({ type: 'seed', data: rows });
-		} else {
-			self.postMessage({ type: 'seed', data: [] });
-		}
-
+		// 1. Connect WebSocket FIRST to start buffering live trades
 		connect();
+
+		// 2. Fetch historical data SECOND and push to queue
+		// The queue will process them chronologically!
+		fetchHistoricalSeed();
+
+		// We no longer immediately post an empty seed here.
+		// The queue will naturally emit ticks once the historical data is processed.
 	} else {
-		// Already connected; the buffer may have grown during
-		// the pause. Rebucket and reseed to catch up.
+		// Already connected; the buffer may have grown during the pause.
 		if (tradeBuffer.length > 0) {
 			const rows = rebucketFromBuffer();
 			self.postMessage({ type: 'seed', data: rows });
@@ -551,3 +523,77 @@ self.onmessage = (evt) => {
 		self.postMessage({ type: 'error', message: String(err && err.message || err) });
 	}
 };
+
+// ─── Trade Processing ───
+function processTrade(trade) {
+	const { price, qty: quantity, time: tradeTime } = trade;
+
+	tradeBuffer.push(trade);
+	trimBuffer(tradeTime);
+
+	if (lastPrice === null) {
+		lastPrice = price;
+		const openTime = floorToBucket(tradeTime);
+		openBucket(openTime, price, tradeTime);
+	}
+
+	lastPrice = price;
+
+	const tradeBucket = floorToBucket(tradeTime);
+	let isNewBucket = false;
+
+	if (!currentBucket) {
+		openBucket(tradeBucket, price, tradeTime);
+		isNewBucket = true;
+	} else if (tradeBucket > currentBucket.openTime) {
+		currentBucket = null;
+		openBucket(tradeBucket, price, tradeTime);
+		isNewBucket = true;
+	}
+
+	foldTrade(currentBucket, price, quantity, tradeTime);
+	maybeEmitTick(isNewBucket);
+}
+
+async function fetchHistoricalSeed() {
+	try {
+		const url = `http://localhost:8000/api/trades?symbol=${symbol}&limit=1000`;
+		const response = await fetch(url);
+
+		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+		const rawTrades = await response.json();
+		const tradesArray = Array.isArray(rawTrades) ? rawTrades : (rawTrades.data || rawTrades);
+
+		// 1. Lock ticking
+		isSeeding = true;
+
+		// 2. Feed all trades synchronously to the processor
+		tradesArray.sort((a, b) => a.time - b.time).forEach(t => {
+			processTrade({
+				price: parseFloat(t.price),
+				qty: parseFloat(t.qty),
+				time: t.time
+			});
+		});
+
+		console.log(`Seeded ${tradesArray.length} historical trades into queue.`);
+
+		// 3. Unlock ticking
+		isSeeding = false;
+
+		// 4. Emit the entire history as a single seed message
+		const rows = rebucketFromBuffer();
+		self.postMessage({ type: 'seed', data: rows });
+		console.log(`Emitted seed with ${rows.length} historical candles.`);
+
+		// 5. Immediately emit the current forming bucket
+		if (currentBucket) {
+			emitTick(false);
+		}
+
+	} catch (err) {
+		isSeeding = false; // Ensure we don't get stuck if fetch fails
+		postError(`Failed to fetch historical seed: ${err.message}`);
+	}
+}
