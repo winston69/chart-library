@@ -290,7 +290,7 @@ async function fetchHistoricalSeed() {
 	const startTime = Date.now() - historyDepthMs;
 	try {
 		const url = `http://localhost:8000/api/klines?symbol=${encodeURIComponent(requestedSymbol)}`
-			+ `&interval=${encodeURIComponent(requestedInterval)}&startTime=${startTime}`;
+			+ `&interval=${encodeURIComponent(requestedInterval)}&startTime=${startTime}&limit=1000`;
 		const response = await fetch(url);
 		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
