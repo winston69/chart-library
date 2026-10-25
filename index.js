@@ -30,9 +30,15 @@ export { CandleStick } from './layers/CandleStick.js';
 export { ReferenceLine } from './layers/ReferenceLine.js';
 
 // Indicators
-export { createMACD } from './indicators/MACD.js';
-export { createBollinger } from './indicators/Bollinger.js';
-export { createRSI } from './indicators/RSI.js';
+export { BaseIndicator } from './indicators/BaseIndicator.js';
+export { MACD } from './indicators/MACD.js';
+export { Bollinger } from './indicators/Bollinger.js';
+export { RSI } from './indicators/RSI.js';
+export { SMA } from './indicators/SMA.js';
+export { VWMA } from './indicators/VWMA.js';
+export { Volume } from './indicators/Volume.js';
+
+// Calculator factories and createIndicatorSet are worker-only APIs.
 
 // Interaction
 export { ChartSelection } from './interaction/ChartSelection.js';

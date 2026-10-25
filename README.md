@@ -31,9 +31,24 @@ Early. API is not stable. No npm release yet.
 - **Band** — a horizontal strip of the plot with its own y-scale.
   Layers belong to a band.
 - **Slot** — where in the plane's DOM tree a layer renders.
-- **Indicator** — a composition of layers that reads data and
-  renders multiple visuals. Composed in the application, not
-  as a class.
+- **Indicator** — a rendering class composed from layers. The
+  worker calculates derived values separately; the main thread
+  supplies rows to the indicator.
+
+## Public API
+
+Import rendering classes and primitives from `index.js`. For example:
+
+```js
+import { CartesianPlane, MACD, RSI, Bollinger } from './index.js';
+```
+
+`BaseIndicator`, `MACD`, `Bollinger`, `RSI`, `SMA`, `VWMA`, and
+`Volume` are the public indicator classes. Calculator factories in
+`indicators/*.calc.js` and `createIndicatorSet` in `indicators.js`
+are worker-side implementation details, not root-barrel exports. The
+demo keeps that separation: it creates rendering classes on the main
+thread, while its feed workers use the calculator registry.
 
 ## Layers
 
@@ -67,13 +82,8 @@ worker that simulates a market data feed. No build step.
 
     npm run dev
 
-## Roadmap
-
-- Indicator factories: `createMACD`, `createBollinger`, etc.
-- Indicator registry: type name → factory.
-- Optional Chart DSL for declarative configuration.
-
 See [SESSION.md](./SESSION.md) for architectural decisions and open work.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the indicator checklist.
 
 ## License
 
