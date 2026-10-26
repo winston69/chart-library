@@ -178,13 +178,16 @@ export const CSS = {
 
 	dropdown: {
 		root: 'dd-root',
+		checklistRoot: 'dd-checklist',
 		trigger: 'dd-trigger',
 		triggerLabel: 'dd-trigger-label',
 		caret: 'dd-caret',
 		popup: 'dd-popup',
 		item: 'dd-item',
 		selected: 'dd-item-selected',
-		highlighted: 'dd-item-highlighted'
+		highlighted: 'dd-item-highlighted',
+		checklistCheckbox: 'dd-checklist-checkbox',
+		checklistLabel: 'dd-checklist-label'
 	},
 
 	toolbar: {

@@ -66,6 +66,7 @@ import { InfoCard } from './cards/InfoCard.js';
 // UI
 import { Button } from './ui/Button.js';
 import { Dropdown } from './ui/Dropdown.js';
+import { Checklist } from './ui/Checklist.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 
@@ -239,7 +240,6 @@ const priceYAxis = new YAxis({
 });
 
 plane.setYAxisForGroup(priceChart._yGroupId, priceYAxis);
-const volumeYAxis = plane.getYAxisForGroup(volume.yGroup);
 
 plane.addLayer(xAxis);
 plane.addLayer(priceYAxis);
@@ -673,11 +673,9 @@ function updateUI() {
 	const demoEnabled = currentSource === 'demo';
 	for (const btn of demoControls) btn.setDisabled(!demoEnabled);
 
-	for (const [name, btn] of Object.entries(indicatorToggleButtons)) {
-		btn.setSelected(!!indicatorInstances[name]);
+	for (const name of Object.keys(indicatorFactories)) {
+		indicatorsChecklist.setChecked(name, !!indicatorInstances[name]);
 	}
-	macdAxisButton.setDisabled(!plane.getYAxisForGroup('macd-group'));
-	if (!plane.getYAxisForGroup('macd-group')) macdAxisButton.setSelected(false);
 }
 
 // ─── TOOLBAR ───
@@ -779,61 +777,6 @@ function makeCardToggle({ id, icon, tooltip, card }) {
 	return btn;
 }
 
-function makeAxisToggle({ id, icon, tooltip, layer }) {
-	const btn = new Button({
-		id,
-		icon,
-		size: 'sm',
-		variant: 'secondary',
-		tooltip,
-		selected: !!plane.getLayer(layer.id),
-		onClick: () => {
-			if (plane.getLayer(layer.id)) plane.removeLayer(layer);
-			else plane.addLayer(layer, layer._addOptions);
-			btn.setSelected(!!plane.getLayer(layer.id));
-		}
-	});
-	return btn;
-}
-
-function makeGroupAxisToggle({ id, groupId, tooltip }) {
-	const btn = new Button({
-		id,
-		icon: 'axisValue',
-		size: 'sm',
-		variant: 'secondary',
-		tooltip,
-		selected: false,
-		disabled: true,
-		onClick: () => {
-			const axis = plane.getYAxisForGroup(groupId);
-			if (!axis) return;
-			if (plane.getLayer(axis.id)) plane.removeLayer(axis);
-			else plane.addLayer(axis, axis._addOptions);
-			btn.setSelected(!!plane.getLayer(axis.id));
-		}
-	});
-	return btn;
-}
-
-function makeIndicatorToggle({ name, label, icon }) {
-	const btn = new Button({
-		id: `toggle-indicator-${name}`,
-		icon,
-		size: 'sm',
-		variant: 'secondary',
-		tooltip: `Toggle ${label}`,
-		selected: false,
-		onClick: () => {
-			const enabled = !btn.selected;
-			setIndicatorEnabled(name, enabled);
-			btn.setSelected(enabled);
-			updateUI();
-		}
-	});
-	return btn;
-}
-
 const legendButton = makeCardToggle({
 	id: 'toggle-legend',
 	icon: 'legend',
@@ -855,56 +798,23 @@ const infoButton = makeCardToggle({
 	card: infoCard
 });
 
-const timeAxisButton = makeAxisToggle({
-	id: 'toggle-time-axis',
-	icon: 'axisTime',
-	tooltip: 'Toggle time axis',
-	layer: xAxis
+const indicatorsChecklist = new Checklist({
+	id: 'toggle-indicators',
+	size: 'sm',
+	variant: 'secondary',
+	tooltip: 'Toggle chart indicators',
+	options: [
+		{ value: 'bollinger', label: 'Bollinger', checked: false },
+		{ value: 'macd', label: 'MACD', checked: false },
+		{ value: 'rsi', label: 'RSI', checked: false },
+		{ value: 'sma', label: 'SMA', checked: false },
+		{ value: 'vwma', label: 'VWMA', checked: false }
+	],
+	onChange: (name, enabled) => {
+		setIndicatorEnabled(name, enabled);
+		updateUI();
+	}
 });
-
-const priceAxisButton = makeAxisToggle({
-	id: 'toggle-price-axis',
-	icon: 'axisValue',
-	tooltip: 'Toggle price axis',
-	layer: priceYAxis
-});
-
-const volumeAxisButton = makeAxisToggle({
-	id: 'toggle-volume-axis',
-	icon: 'axisValue',
-	tooltip: 'Toggle volume axis',
-	layer: volumeYAxis
-});
-
-const macdAxisButton = makeGroupAxisToggle({
-	id: 'toggle-macd-axis',
-	groupId: 'macd-group',
-	tooltip: 'Toggle MACD axis'
-});
-
-const bollingerButton = makeIndicatorToggle({
-	name: 'bollinger', label: 'Bollinger', icon: 'strategy'
-});
-const macdButton = makeIndicatorToggle({
-	name: 'macd', label: 'MACD', icon: 'strategy'
-});
-const rsiButton = makeIndicatorToggle({
-	name: 'rsi', label: 'RSI', icon: 'strategy'
-});
-const smaButton = makeIndicatorToggle({
-	name: 'sma', label: 'SMA', icon: 'axisValue'
-});
-const vwmaButton = makeIndicatorToggle({
-	name: 'vwma', label: 'VWMA', icon: 'axisValue'
-});
-
-const indicatorToggleButtons = {
-	bollinger: bollingerButton,
-	macd: macdButton,
-	rsi: rsiButton,
-	sma: smaButton,
-	vwma: vwmaButton
-};
 
 // ─── Data controls ───
 
@@ -1058,15 +968,7 @@ const viewGroup = toolbar.addGroup({ id: 'view', label: 'View' });
 viewGroup.addItem(legendButton);
 viewGroup.addItem(ohlcButton);
 viewGroup.addItem(infoButton);
-viewGroup.addItem(timeAxisButton);
-viewGroup.addItem(priceAxisButton);
-viewGroup.addItem(volumeAxisButton);
-viewGroup.addItem(macdAxisButton);
-viewGroup.addItem(bollingerButton);
-viewGroup.addItem(macdButton);
-viewGroup.addItem(rsiButton);
-viewGroup.addItem(smaButton);
-viewGroup.addItem(vwmaButton);
+viewGroup.addItem(indicatorsChecklist);
 
 const dataGroup = toolbar.addGroup({ id: 'data', label: 'Data' });
 dataGroup.addItem(symbolDropdown);

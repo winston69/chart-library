@@ -48,7 +48,7 @@ Primitives:
 - `CrosshairLayer`, `InteractionLayer` — pointer behaviors.
 
 Card layers (HTML overlay): `CardStrip`, `Legend`, `OHLCCard`, `InfoCard`.
-UI layers: `Button`, `Dropdown`, `ToolBar`, `ToolTip`.
+UI layers: `Button`, `Checklist`, `Dropdown`, `ToolBar`, `ToolTip`.
 
 Indicator classes (main-thread rendering):
 - `BaseIndicator` — base class owning layer list, dispatch.
@@ -128,7 +128,7 @@ Declarative indicator layout
 - Flexible bands use remaining plot height after fixed indicator
   heights; fixed heights are proportionally normalized if they
   exceed the plot. The demo starts with Price and Volume, with
-  optional indicators managed by View toolbar toggles.
+  optional indicators managed by the View toolbar's checklist.
 
 Architectural weight — layout boundary
 - Extracted pure margin aggregation, plot-bound calculations, and
