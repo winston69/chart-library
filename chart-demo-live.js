@@ -66,6 +66,7 @@
 //     { type: 'state' }
 //
 //   Worker → Main
+//     { type: 'metadata', decimals }
 //     { type: 'seed',  data: [row, ...] }
 //     { type: 'tick',  data: row, isNewBucket }
 //     { type: 'state', running, connected }
@@ -557,6 +558,30 @@ function processTrade(trade) {
 
 async function fetchHistoricalSeed() {
 	try {
+		let decimals = 2;
+		try {
+			const metadataResponse = await fetch(
+				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(symbol)}`
+			);
+			if (!metadataResponse.ok) {
+				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
+			}
+			const metadata = await metadataResponse.json();
+			const payload = metadata && metadata.data !== undefined ? metadata.data : metadata;
+			const symbols = Array.isArray(payload?.symbols)
+				? payload.symbols
+				: (Array.isArray(payload) ? payload : [payload]);
+			const symbolInfo = symbols.find(entry => entry && entry.symbol === symbol);
+			const precision = Number(symbolInfo?.quotePrecision ?? symbolInfo?.baseAssetPrecision);
+			if (!Number.isInteger(precision) || precision < 0) {
+				throw new Error(`No precision found for ${symbol}`);
+			}
+			decimals = precision;
+		} catch (err) {
+			console.warn(`Failed to fetch precision for ${symbol}; using 2 decimals: ${err.message}`);
+		}
+		self.postMessage({ type: 'metadata', decimals });
+
 		const url = `http://localhost:8000/api/trades?symbol=${symbol}&limit=1000`;
 		const response = await fetch(url);
 

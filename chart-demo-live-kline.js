@@ -6,6 +6,7 @@
 // Exchange candles are already bucketed. This worker maps their
 // REST and WebSocket payloads to chart rows and computes the
 // indicator fields consumed by the main thread.
+// It also posts symbol precision metadata before its REST seed.
 // ──────────────────────────────────────────────────────────────
 
 import { createIndicatorSet } from './indicators.js';
@@ -289,6 +290,31 @@ async function fetchHistoricalSeed() {
 	const historyDepthMs = maxData;
 	const startTime = Date.now() - historyDepthMs;
 	try {
+		let decimals = 2;
+		try {
+			const metadataResponse = await fetch(
+				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(requestedSymbol)}`
+			);
+			if (!metadataResponse.ok) {
+				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
+			}
+			const metadata = await metadataResponse.json();
+			const payload = metadata && metadata.data !== undefined ? metadata.data : metadata;
+			const symbols = Array.isArray(payload?.symbols)
+				? payload.symbols
+				: (Array.isArray(payload) ? payload : [payload]);
+			const symbolInfo = symbols.find(entry => entry && entry.symbol === requestedSymbol);
+			const precision = Number(symbolInfo?.quotePrecision ?? symbolInfo?.baseAssetPrecision);
+			if (!Number.isInteger(precision) || precision < 0) {
+				throw new Error(`No precision found for ${requestedSymbol}`);
+			}
+			decimals = precision;
+		} catch (err) {
+			console.warn(`Failed to fetch precision for ${requestedSymbol}; using 2 decimals: ${err.message}`);
+		}
+		if (generation !== seedGeneration) return;
+		self.postMessage({ type: 'metadata', decimals });
+
 		const url = `http://localhost:8000/api/klines?symbol=${encodeURIComponent(requestedSymbol)}`
 			+ `&interval=${encodeURIComponent(requestedInterval)}&startTime=${startTime}&limit=1000`;
 		const response = await fetch(url);

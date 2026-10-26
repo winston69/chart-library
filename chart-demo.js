@@ -72,9 +72,7 @@ import { ToolTip } from './ui/ToolTip.js';
 
 // ─── CONSTANTS ───
 
-// Temporary. Will be sourced from exchange metadata once the
-// live symbol selector lands.
-const SYMBOL_DECIMALS = 2;
+let SYMBOL_DECIMALS = 2;
 
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
 
@@ -234,6 +232,7 @@ const priceYAxis = new YAxis({
 	showTicks: true,
 	showTickLabels: true,
 	showLabel: true,
+	decimals: SYMBOL_DECIMALS,
 	tickStepMode: 'decimal',
 	showMinorTicks: true,
 	showMicroTicks: true
@@ -504,6 +503,14 @@ function ensureLiveWorkerForSource(source) {
 
 // ─── WORKER MESSAGE HANDLERS ───
 
+function setSymbolDecimals(decimals) {
+	if (!Number.isInteger(decimals) || decimals < 0) return;
+	SYMBOL_DECIMALS = decimals;
+	priceChart.decimals = SYMBOL_DECIMALS;
+	priceYAxis.decimals = SYMBOL_DECIMALS;
+	plane.update();
+}
+
 function handleDemoMessage(evt) {
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
@@ -533,6 +540,9 @@ function handleLiveMessage(evt, source) {
 	if (!msg || typeof msg.type !== 'string') return;
 
 	switch (msg.type) {
+		case 'metadata':
+			setSymbolDecimals(msg.decimals);
+			break;
 		case 'seed':
 			applySeed(msg.data);
 			break;
@@ -600,6 +610,8 @@ function switchSource(newSource) {
 		ensureLiveWorker();
 	} else if (currentSource === 'live-kline') {
 		ensureLiveKlineWorker();
+	} else {
+		setSymbolDecimals(2);
 	}
 
 	updateUI();
