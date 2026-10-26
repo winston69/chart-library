@@ -354,15 +354,6 @@ export class InteractionLayer extends Layer {
 
 	_onWheel(e) {
 		if (!this.enableWheelZoom) return;
-		if (e.shiftKey) {
-			// TODO: implement Shift+wheel panning.
-			return;
-		}
-		if (e.ctrlKey) {
-			// TODO: implement Ctrl+wheel cursor-anchored zoom.
-			return;
-		}
-
 		const pt = SVG.getPoint(this.plane._elements.svg, e);
 		if (!pt) return;
 		if (!this._isInsidePlot(pt.x, pt.y)) return;
@@ -370,18 +361,29 @@ export class InteractionLayer extends Layer {
 		const plane = this.plane;
 		const spanFactor = e.deltaY < 0 ? 0.9 : 1 / 0.9;
 		const zoomFactor = 1 / spanFactor;
-		const anchorX = plane.getXZoomAnchor();
 
-		plane.zoom(zoomFactor, anchorX, 'x');
-
-		const groupId = plane.getYGroupAt(pt.y);
-		const group = groupId ? plane._yGroups[groupId] : null;
-		if (group && group.yScale) {
-			const anchorY = group.yScale.toData(pt.y);
-			plane.zoom(zoomFactor, anchorY, 'y', groupId);
+		if (e.ctrlKey) {
+			const anchorX = plane.xScale.toData(pt.x);
+			plane.zoom(zoomFactor, anchorX, 'x');
+			this._zoomHoveredBand(plane, pt.y, zoomFactor);
+		} else if (e.shiftKey) {
+			plane.pan((e.deltaY < 0 ? 1 : -1) * plane.plotWidth * 0.1, 0, 'x');
+		} else {
+			const anchorX = plane.getXZoomAnchor();
+			plane.zoom(zoomFactor, anchorX, 'x');
+			this._zoomHoveredBand(plane, pt.y, zoomFactor);
 		}
 
 		e.preventDefault();
+	}
+
+	_zoomHoveredBand(plane, pixelY, factor) {
+		const groupId = plane.getYGroupAt(pixelY);
+		const group = groupId ? plane._yGroups[groupId] : null;
+		if (group && group.yScale) {
+			const anchorY = group.yScale.toData(pixelY);
+			plane.zoom(factor, anchorY, 'y', groupId);
+		}
 	}
 
 	_onDoubleClick(e) {
