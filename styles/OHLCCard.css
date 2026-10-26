@@ -11,6 +11,9 @@
 }
 
 .ohlc-title {
+	display: flex;
+	justify-content: space-between;
+	gap: 2px;
 	flex: 0 0 auto;
 	font-weight: bold;
 	color: rgba(255, 255, 255, 0.9);
@@ -20,6 +23,19 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.ohlc-title-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ohlc-time {
+	flex: 0 0 auto;
+	font-size: 7px;
+	font-weight: normal;
+	font-variant-numeric: tabular-nums;
 }
 
 .ohlc-rows {

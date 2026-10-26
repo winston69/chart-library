@@ -15,6 +15,23 @@
 const DEFAULT_WIDTH = 140;
 
 const FIELDS = ['Open', 'High', 'Low', 'Close'];
+const timestampFormatter = new Intl.DateTimeFormat('en-US', {
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hourCycle: 'h23'
+});
+
+function formatTimestamp(timestamp) {
+	if (!Number.isFinite(timestamp)) return '—';
+
+	const parts = Object.fromEntries(
+		timestampFormatter.formatToParts(timestamp).map(part => [part.type, part.value])
+	);
+	return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
 
 export class OHLCCard {
 	constructor(options = {}) {
@@ -51,8 +68,10 @@ export class OHLCCard {
 		this._elements = {
 			root: null,
 			titleEl: null,
+			timestampEl: null,
 			rowsEl: null
 		};
+		this._timestamp = null;
 	}
 
 	// ──────────────────────────────────────────────────────────
@@ -80,11 +99,12 @@ export class OHLCCard {
 		if (this._elements.root && this._elements.root.parentNode) {
 			this._elements.root.parentNode.removeChild(this._elements.root);
 		}
-		this._elements = { root: null, titleEl: null, rowsEl: null };
+		this._elements = { root: null, titleEl: null, timestampEl: null, rowsEl: null };
 		for (const key of FIELDS) {
 			this.items[key].e = null;
 			this.items[key].value = null;
 		}
+		this._timestamp = null;
 		this._hoveredSample = null;
 		this._lastDirection = null;
 	}
@@ -99,9 +119,17 @@ export class OHLCCard {
 
 		const titleEl = document.createElement('div');
 		titleEl.className = 'ohlc-title';
-		titleEl.textContent = this.title;
+		const titleTextEl = document.createElement('span');
+		titleTextEl.className = 'ohlc-title-text';
+		titleTextEl.textContent = this.title;
+		titleEl.appendChild(titleTextEl);
+
+		const timestampEl = document.createElement('span');
+		timestampEl.className = 'ohlc-time';
+		titleEl.appendChild(timestampEl);
 		root.appendChild(titleEl);
 		this._elements.titleEl = titleEl;
+		this._elements.timestampEl = timestampEl;
 
 		const rowsEl = document.createElement('div');
 		rowsEl.className = 'ohlc-rows';
@@ -152,7 +180,8 @@ export class OHLCCard {
 			Open: this.layer.openAccessor(last),
 			High: this.layer.highAccessor(last),
 			Low: this.layer.lowAccessor(last),
-			Close: this.layer.closeAccessor(last)
+			Close: this.layer.closeAccessor(last),
+			openTime: last.openTime
 		};
 	}
 
@@ -164,6 +193,7 @@ export class OHLCCard {
 		const src = this._getSource();
 
 		if (!src) {
+			this._applyTimestamp(null);
 			for (const key of FIELDS) {
 				const item = this.items[key];
 				if (item.value !== null) {
@@ -175,6 +205,7 @@ export class OHLCCard {
 			return;
 		}
 
+		this._applyTimestamp(src.openTime);
 		const decimals = this.decimals;
 		for (const key of FIELDS) {
 			const v = src[key];
@@ -251,10 +282,21 @@ export class OHLCCard {
 			High: this.layer.highAccessor(datum),
 			Low: this.layer.lowAccessor(datum),
 			Close: this.layer.closeAccessor(datum),
+			openTime: datum.openTime,
 			x
 		};
 
 		this._applyValues();
+	}
+
+	_applyTimestamp(timestamp) {
+		const formatted = formatTimestamp(timestamp);
+		if (this._timestamp === formatted) return;
+
+		this._timestamp = formatted;
+		if (this._elements.timestampEl) {
+			this._elements.timestampEl.textContent = formatted;
+		}
 	}
 }
 
