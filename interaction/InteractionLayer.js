@@ -486,7 +486,7 @@ export class InteractionLayer extends Layer {
 			ds.lastY = pt.y;
 
 			const base = plot.height > 0 ? plot.height : 1;
-			const factor = 1 + (dy / base) * this.axisDragFactor;
+			const factor = 1 - (dy / base) * this.axisDragFactor;
 			if (!isFinite(factor) || factor <= 0 || factor === 1) return;
 
 			const groupIds = ds.groupId
