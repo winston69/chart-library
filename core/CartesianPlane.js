@@ -758,7 +758,8 @@ export class CartesianPlane {
 				id: groupId, height, rows: [], yScale: null,
 				domain: [0, 1], _yTop: 0, _yBottom: 0,
 				_yRange: [0, 0], _heightPx: 0, _heightFraction: 0,
-				_normalizedHeight: height, dirty: true, _createdAt: Date.now()
+				_normalizedHeight: height, dirty: true, yLocked: false,
+				_createdAt: Date.now()
 			};
 			this._yGroups[groupId] = group;
 			this._yGroupOrder.push(groupId);
@@ -1434,8 +1435,8 @@ export class CartesianPlane {
 	}
 
 	/**
-	 * Recomputes each y-group's y-domain from its member data layers'
-	 * stats. Skips groups with no rows or locked domains.
+	 * Recomputes each y-group's y-domain from its member layers, using
+	 * visible data when the x-domain is user-locked.
 	 */
 	_computeYGroupDomains() {
 		const domainChanges = [];
@@ -1447,20 +1448,28 @@ export class CartesianPlane {
 		for (const groupId in yGroups) {
 			const group = yGroups[groupId];
 			if (group.rows.length === 0) continue;
+			if (group.yLocked) continue;
 			if (locked[groupId]) continue;
 
 			let yMin = Infinity, yMax = -Infinity;
 			let hasData = false;
 			const rows = group.rows;
 
-			for (let i = 0, len = rows.length; i < len; i++) {
-				const chart = rows[i].chart;
-				if (!chart.isDataLayer) continue;
-				const stats = chart.getStats();
-				if (stats && stats.hasData) {
-					hasData = true;
-					if (stats.yMin < yMin) yMin = stats.yMin;
-					if (stats.yMax > yMax) yMax = stats.yMax;
+			if (this._xDomainLocked) {
+				const visibleDomain = this._getVisibleYDomain(group, this.xScale.domain);
+				yMin = visibleDomain[0];
+				yMax = visibleDomain[1];
+				hasData = true;
+			} else {
+				for (let i = 0, len = rows.length; i < len; i++) {
+					const chart = rows[i].chart;
+					if (!chart.isDataLayer) continue;
+					const stats = chart.getStats();
+					if (stats && stats.hasData) {
+						hasData = true;
+						if (stats.yMin < yMin) yMin = stats.yMin;
+						if (stats.yMax > yMax) yMax = stats.yMax;
+					}
 				}
 			}
 
@@ -1512,6 +1521,78 @@ export class CartesianPlane {
 		for (let i = 0, len = domainChanges.length; i < len; i++) {
 			events.emit(Events.YGROUP_DOMAIN_CHANGED, domainChanges[i]);
 		}
+	}
+
+	/**
+	 * Fits each unlocked y-group to data visible in the current x-domain.
+	 *
+	 * @returns {CartesianPlane} this
+	 */
+	autoFitVisibleY() {
+		if (this._autoFitVisibleY()) this._requestUpdate();
+		return this;
+	}
+
+	_autoFitVisibleY() {
+		const xDomain = this.xScale.domain;
+		let changed = false;
+
+		for (const groupId in this._yGroups) {
+			const group = this._yGroups[groupId];
+			if (group.yLocked) continue;
+
+			const nextDomain = this._getVisibleYDomain(group, xDomain);
+			const [min, max] = nextDomain;
+			const oldDomain = group.yScale ? group.yScale.domain : group.domain;
+			if (oldDomain[0] === min && oldDomain[1] === max) continue;
+
+			group.domain = nextDomain;
+			group.dirty = false;
+			if (group.yScale) group.yScale.domain = nextDomain;
+			changed = true;
+
+			const yRange = group._yRange || [this.plotBottom, this.plotTop];
+			const bandBounds = {
+				top: group._yTop !== undefined ? group._yTop : this.plotTop,
+				bottom: group._yBottom !== undefined ? group._yBottom : this.plotBottom,
+				height: (group._yBottom !== undefined ? group._yBottom : this.plotBottom) -
+					(group._yTop !== undefined ? group._yTop : this.plotTop)
+			};
+			this.events.emit(Events.SCALE_DOMAIN_CHANGED, {
+				plane: this, axis: 'y', groupId, domain: nextDomain
+			});
+			this.events.emit(Events.YGROUP_DOMAIN_CHANGED, {
+				groupId, domain: nextDomain, yScale: group.yScale,
+				yRange, bandBounds
+			});
+		}
+
+		return changed;
+	}
+
+	_getVisibleYDomain(group, xDomain) {
+		let min = Infinity;
+		let max = -Infinity;
+		for (let i = 0, len = group.rows.length; i < len; i++) {
+			const layer = group.rows[i].chart;
+			if (!layer || !layer.isDataLayer || typeof layer.getVisibleDomain !== 'function') continue;
+			if (typeof layer.getStats === 'function') {
+				const stats = layer.getStats();
+				if (stats && stats.hasData === false) continue;
+			}
+
+			const visible = layer.getVisibleDomain(xDomain);
+			if (!visible || visible.hasData === false ||
+				!isFinite(visible.min) || !isFinite(visible.max)) continue;
+			if (visible.min < min) min = visible.min;
+			if (visible.max > max) max = visible.max;
+		}
+
+		if (min === Infinity) return [0, 1];
+
+		const span = max - min;
+		const padding = span > 0 ? span * 0.05 : (Math.abs(min) * 0.05 || 1);
+		return [min - padding, max + padding];
 	}
 
 	/**
@@ -1832,6 +1913,7 @@ export class CartesianPlane {
 			this.events.emit(Events.SCALE_DOMAIN_CHANGED, {
 				plane: this, axis: 'x', domain: this.xScale.domain
 			});
+			this.autoFitVisibleY();
 		}
 
 		if (axis === 'y' || axis === 'both') {
@@ -1881,6 +1963,7 @@ export class CartesianPlane {
 			this.events.emit(Events.SCALE_DOMAIN_CHANGED, {
 				plane: this, axis: 'x', domain: xScale.domain
 			});
+			this.autoFitVisibleY();
 		}
 
 		if (axis === 'y' || axis === 'both') {

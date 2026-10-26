@@ -5,6 +5,7 @@ import {
 	calculateMargins,
 	calculatePlotArea
 } from '../core/ChartLayout.js';
+import { CartesianPlane } from '../core/CartesianPlane.js';
 
 const noMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -82,4 +83,73 @@ test('band layout normalizes ratios and stacks in order from the plot bottom', (
 			range: [90, 0]
 		}
 	]);
+});
+
+test('autoFitVisibleY aggregates visible layer domains and pads each band', () => {
+	const plane = new CartesianPlane({ xDomain: [0, 10] });
+	const yScale = { domain: [-100, 100] };
+	const makeLayer = (min, max) => ({
+		isDataLayer: true,
+		getVisibleDomain: () => ({ min, max })
+	});
+	plane._yGroups.price = {
+		rows: [
+			{ chart: makeLayer(2, 8) },
+			{ chart: makeLayer(-2, 12) }
+		],
+		domain: [-100, 100],
+		yScale,
+		_yRange: [100, 0],
+		_yTop: 0,
+		_yBottom: 100,
+		yLocked: false
+	};
+	plane._requestUpdate = () => {};
+
+	plane.autoFitVisibleY();
+
+	assert.deepEqual(yScale.domain, [-2.7, 12.7]);
+	assert.deepEqual(plane._yGroups.price.domain, [-2.7, 12.7]);
+});
+
+test('autoFitVisibleY leaves y-locked bands unchanged', () => {
+	const plane = new CartesianPlane({ xDomain: [0, 10] });
+	const yScale = { domain: [-5, 5] };
+	plane._yGroups.price = {
+		rows: [{
+			chart: {
+				isDataLayer: true,
+				getVisibleDomain: () => ({ min: 0, max: 100 })
+			}
+		}],
+		domain: [-5, 5],
+		yScale,
+		yLocked: true
+	};
+
+	plane.autoFitVisibleY();
+
+	assert.deepEqual(yScale.domain, [-5, 5]);
+});
+
+test('autoFitVisibleY uses the default domain when no layer data is visible', () => {
+	const plane = new CartesianPlane({ xDomain: [20, 30] });
+	const yScale = { domain: [-5, 5] };
+	plane._yGroups.price = {
+		rows: [{
+			chart: {
+				isDataLayer: true,
+				getStats: () => ({ hasData: true }),
+				getVisibleDomain: () => ({ min: 0, max: 1, hasData: false })
+			}
+		}],
+		domain: [-5, 5],
+		yScale,
+		yLocked: false
+	};
+	plane._requestUpdate = () => {};
+
+	plane.autoFitVisibleY();
+
+	assert.deepEqual(yScale.domain, [0, 1]);
 });

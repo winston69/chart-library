@@ -107,6 +107,17 @@ export class Layer {
 	}
 
 	/**
+	 * Returns this layer's Y-domain contribution within an X-domain, or
+	 * null if the layer has no visible data-domain contribution.
+	 *
+	 * @param {[number, number]} xDomain
+	 * @returns {{ min: number, max: number, hasData?: boolean }|null}
+	 */
+	getVisibleDomain(xDomain) {
+		return null;
+	}
+
+	/**
 	 * Returns the layer's primary theme color as a resolved CSS color
 	 * string, or null if the layer doesn't define one.
 	 *

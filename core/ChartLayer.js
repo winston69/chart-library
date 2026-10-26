@@ -69,6 +69,25 @@ export class ChartLayer extends Layer {
 		return this.data;
 	}
 
+	getVisibleDomain(xDomain) {
+		const [xMin, xMax] = xDomain;
+		let min = Infinity;
+		let max = -Infinity;
+
+		for (let i = 0, len = this.data.length; i < len; i++) {
+			const point = this.data[i];
+			const x = this.xAccessor(point);
+			if (!isFinite(x) || x < xMin || x > xMax) continue;
+			const y = this.yAccessor(point);
+			if (!isFinite(y)) continue;
+			if (y < min) min = y;
+			if (y > max) max = y;
+		}
+
+		if (min === Infinity) return { min: 0, max: 1, hasData: false };
+		return { min, max, hasData: true };
+	}
+
 	// ──────────────────────────────────────────────────────────
 	// POINT LIFECYCLE (contract)
 	//

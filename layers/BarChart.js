@@ -370,6 +370,13 @@ export class BarChart extends ChartLayer {
 		);
 	}
 
+	getVisibleDomain(xDomain) {
+		const domain = super.getVisibleDomain(xDomain);
+		if (!domain || !domain.hasData || this.baseline !== 'zero') return domain;
+		if (domain.min > 0) domain.min = 0;
+		return domain;
+	}
+
 	// ─── Data management ───
 	setData(data) {
 		this.data = data;

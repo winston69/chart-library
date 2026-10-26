@@ -389,6 +389,27 @@ export class CandleStick extends ChartLayer {
 		);
 	}
 
+	getVisibleDomain(xDomain) {
+		const [xMin, xMax] = xDomain;
+		let min = Infinity;
+		let max = -Infinity;
+
+		for (let i = 0, len = this.data.length; i < len; i++) {
+			const candle = this.data[i];
+			const x = this.xAccessor(candle);
+			if (!isFinite(x) || x < xMin || x > xMax) continue;
+			const low = this.lowAccessor(candle);
+			const high = this.highAccessor(candle);
+			if (isFinite(low) && low < min) min = low;
+			if (isFinite(high) && high > max) max = high;
+		}
+
+		if (min === Infinity || max === -Infinity) {
+			return { min: 0, max: 1, hasData: false };
+		}
+		return { min, max, hasData: true };
+	}
+
 	// ─── Data management ───
 	setData(data) {
 		this.data = data;
