@@ -552,9 +552,8 @@ function handleLiveMessage(evt, source) {
 			break;
 		case 'symbols':
 			if (!Array.isArray(msg.data)) break;
-			symbolDropdown.setOptions(msg.data
-				.filter(symbol => typeof symbol === 'string' && symbol)
-				.map(symbol => ({ value: symbol, label: symbol })));
+			console.log('[live feed] received symbols:', msg.data);
+			symbolDropdown.setItems(msg.data);
 			symbolDropdown.setValue(currentSymbol, false);
 			break;
 		case 'seed':

@@ -18,7 +18,7 @@
 //   render(container) → HTMLElement
 //   open() / close() / toggle()
 //   setValue(value, fire) / getValue()
-//   setOptions(options)
+//   setOptions(options) / setItems(items)
 //   setDisabled(bool)
 //   destroy()
 //
@@ -440,6 +440,15 @@ export class Dropdown {
 		this._buildItems();
 		this._update();
 		return this;
+	}
+
+	setItems(items) {
+		const options = Array.isArray(items)
+			? items.map(item => typeof item === 'string'
+				? { value: item, label: item }
+				: item)
+			: [];
+		return this.setOptions(options);
 	}
 
 	setDisabled(disabled) {

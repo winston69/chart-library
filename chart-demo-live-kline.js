@@ -304,17 +304,16 @@ async function fetchHistoricalSeed() {
 		let priceDecimals = 2;
 		let qtyDecimals = 4;
 		try {
-			const metadataResponse = await fetch(
-				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(requestedSymbol)}`
-			);
+			const metadataResponse = await fetch('http://localhost:8000/api/symbol-info');
 			if (!metadataResponse.ok) {
 				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
 			}
 			const metadata = await metadataResponse.json();
 			const payload = metadata && metadata.data !== undefined ? metadata.data : metadata;
-			const symbols = Array.isArray(payload?.symbols)
-				? payload.symbols
-				: (Array.isArray(payload) ? payload : []);
+			const symbols = payload?.symbols;
+			if (!Array.isArray(symbols)) {
+				throw new Error('Unexpected exchange info response: symbols array is missing');
+			}
 			if (generation !== seedGeneration) return;
 			const availableSymbols = [...new Set(symbols
 				.filter(entry => entry && entry.status === 'trading'
