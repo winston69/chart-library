@@ -125,6 +125,23 @@ Architectural weight — layout boundary
 - Phase 3 is complete. Domain computation and plane coordination
   remain in `CartesianPlane.js`.
 
+Interaction & Zoom
+- Bare wheel zoom follows TradingView-style behavior: X zoom is
+  anchored at the right-side data edge, while Y zoom affects only
+  the hovered band. `autoFitVisibleY()` stretches unlocked bands
+  to the visible data extremes.
+- The X-axis right gap is fixed in pixels using the configured
+  padding fraction. Zooming out is clamped so the full data extent
+  stays attached to the left edge of the plot.
+- Ctrl+Wheel zooms X around the cursor and zooms Y in the hovered
+  band. Shift+Wheel pans X. Both actions trigger visible Y auto-fit.
+- The Y-axis drag direction is corrected: dragging down stretches
+  the range toward lower data values.
+- Each y-group has a `yLocked` flag to opt out of automatic fitting.
+  The flag is in place but is not yet exposed in the UI.
+- The Ctrl and Shift branches in `interaction/InteractionLayer.js`
+  are fully implemented; they are no longer stubs.
+
 ### Session 2026-10-25
 
 Live feed & local proxy
