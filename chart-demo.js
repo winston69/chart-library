@@ -98,9 +98,7 @@ const MAX_DATA_OPTIONS = [
 ];
 
 const SYMBOL_OPTIONS = [
-	{ value: 'BTCPHP', label: 'BTCPHP' },
-	{ value: 'USDTPHP', label: 'USDTPHP' },
-	{ value: 'ETHPHP', label: 'ETHPHP' }
+	{ value: 'BTCPHP', label: 'BTCPHP' }
 ];
 
 const SOURCE_OPTIONS = [
@@ -552,6 +550,13 @@ function handleLiveMessage(evt, source) {
 		case 'metadata':
 			setSymbolPrecision(msg.priceDecimals, msg.qtyDecimals);
 			break;
+		case 'symbols':
+			if (!Array.isArray(msg.data)) break;
+			symbolDropdown.setOptions(msg.data
+				.filter(symbol => typeof symbol === 'string' && symbol)
+				.map(symbol => ({ value: symbol, label: symbol })));
+			symbolDropdown.setValue(currentSymbol, false);
+			break;
 		case 'seed':
 			applySeed(msg.data);
 			break;
@@ -911,15 +916,17 @@ const symbolDropdown = new Dropdown({
 	options: SYMBOL_OPTIONS,
 	value: currentSymbol,
 	onSelect: (value) => {
+		if (typeof value !== 'string' || !value || value === currentSymbol) return;
 		currentSymbol = value;
-		if ((currentSource === 'live' && liveWorker)
-			|| (currentSource === 'live-kline' && liveKlineWorker)) {
-			// The active live worker reconnects for this symbol
-			// and replaces the chart with a new seed.
-			ensureLiveWorkerForSource(currentSource).postMessage(
-				liveWorkerConfig(currentSource)
-			);
-		}
+		setSymbolPrecision(2, 4);
+		if (currentSource !== 'live' && currentSource !== 'live-kline') return;
+
+		const worker = ensureLiveWorkerForSource(currentSource);
+		worker.postMessage({ type: 'disconnect' });
+		worker.postMessage(liveWorkerConfig(currentSource));
+		worker.postMessage({ type: 'start' });
+		feedRunning = true;
+		updateUI();
 	}
 });
 

@@ -314,7 +314,13 @@ async function fetchHistoricalSeed() {
 			const payload = metadata && metadata.data !== undefined ? metadata.data : metadata;
 			const symbols = Array.isArray(payload?.symbols)
 				? payload.symbols
-				: (Array.isArray(payload) ? payload : [payload]);
+				: (Array.isArray(payload) ? payload : []);
+			if (generation !== seedGeneration) return;
+			const availableSymbols = [...new Set(symbols
+				.filter(entry => entry && entry.status === 'trading'
+					&& typeof entry.symbol === 'string' && entry.symbol)
+				.map(entry => entry.symbol))];
+			self.postMessage({ type: 'symbols', data: availableSymbols });
 			const symbolInfo = symbols.find(entry => entry && entry.symbol === requestedSymbol);
 			if (!symbolInfo) throw new Error(`No symbol metadata found for ${requestedSymbol}`);
 			const filters = Array.isArray(symbolInfo.filters) ? symbolInfo.filters : [];

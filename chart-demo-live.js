@@ -67,6 +67,7 @@
 //
 //   Worker → Main
 //     { type: 'metadata', priceDecimals, qtyDecimals }
+//     { type: 'symbols', data: [symbol, ...] }
 //     { type: 'seed',  data: [row, ...] }
 //     { type: 'tick',  data: row, isNewBucket }
 //     { type: 'state', running, connected }
@@ -130,6 +131,7 @@ const MAX_TRADES = 200000;
 let lastTickAt = 0;
 
 let isSeeding = false;
+let seedGeneration = 0;
 
 // ──────────────────────────────────────────────────────────────
 // Helpers
@@ -416,6 +418,7 @@ function handleConfig(msg) {
 
 	if (connectionChanged) {
 		// Symbol or stream changed: full reset.
+		seedGeneration++;
 		const wasEmitting = emitting;
 		emitting = false;
 		disconnectSocket();
@@ -429,6 +432,7 @@ function handleConfig(msg) {
 			emitting = true;
 			self.postMessage({ type: 'seed', data: [] });
 			connect();
+			fetchHistoricalSeed();
 		} else {
 			self.postMessage({ type: 'seed', data: [] });
 		}
@@ -482,6 +486,7 @@ function stop() {
 }
 
 function disconnect() {
+	seedGeneration++;
 	emitting = false;
 	disconnectSocket();
 	tradeBuffer.length = 0;
@@ -568,12 +573,14 @@ function processTrade(trade) {
 }
 
 async function fetchHistoricalSeed() {
+	const generation = seedGeneration;
+	const requestedSymbol = symbol;
 	try {
 		let priceDecimals = 2;
 		let qtyDecimals = 4;
 		try {
 			const metadataResponse = await fetch(
-				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(symbol)}`
+				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(requestedSymbol)}`
 			);
 			if (!metadataResponse.ok) {
 				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
@@ -582,35 +589,45 @@ async function fetchHistoricalSeed() {
 			const payload = metadata && metadata.data !== undefined ? metadata.data : metadata;
 			const symbols = Array.isArray(payload?.symbols)
 				? payload.symbols
-				: (Array.isArray(payload) ? payload : [payload]);
-			const symbolInfo = symbols.find(entry => entry && entry.symbol === symbol);
-			if (!symbolInfo) throw new Error(`No symbol metadata found for ${symbol}`);
+				: (Array.isArray(payload) ? payload : []);
+			if (generation !== seedGeneration) return;
+			const availableSymbols = [...new Set(symbols
+				.filter(entry => entry && entry.status === 'trading'
+					&& typeof entry.symbol === 'string' && entry.symbol)
+				.map(entry => entry.symbol))];
+			self.postMessage({ type: 'symbols', data: availableSymbols });
+			const symbolInfo = symbols.find(entry => entry && entry.symbol === requestedSymbol);
+			if (!symbolInfo) throw new Error(`No symbol metadata found for ${requestedSymbol}`);
 			const filters = Array.isArray(symbolInfo.filters) ? symbolInfo.filters : [];
 			const priceFilter = filters.find(filter => filter.filterType === 'PRICE_FILTER');
 			const lotSizeFilter = filters.find(filter => filter.filterType === 'LOT_SIZE');
 			const pricePrecision = countDecimals(priceFilter?.tickSize);
 			const quantityPrecision = countDecimals(lotSizeFilter?.stepSize);
 			if (pricePrecision === null) {
-				console.warn(`Missing valid PRICE_FILTER tickSize for ${symbol}; using 2 decimals.`);
+				console.warn(`Missing valid PRICE_FILTER tickSize for ${requestedSymbol}; using 2 decimals.`);
 			} else {
 				priceDecimals = pricePrecision;
 			}
 			if (quantityPrecision === null) {
-				console.warn(`Missing valid LOT_SIZE stepSize for ${symbol}; using 4 decimals.`);
+				console.warn(`Missing valid LOT_SIZE stepSize for ${requestedSymbol}; using 4 decimals.`);
 			} else {
 				qtyDecimals = quantityPrecision;
 			}
 		} catch (err) {
-			console.warn(`Failed to fetch trading precision for ${symbol}; using defaults: ${err.message}`);
+			if (generation !== seedGeneration) return;
+			console.warn(`Failed to fetch trading precision for ${requestedSymbol}; using defaults: ${err.message}`);
 		}
+		if (generation !== seedGeneration) return;
 		self.postMessage({ type: 'metadata', priceDecimals, qtyDecimals });
 
-		const url = `http://localhost:8000/api/trades?symbol=${symbol}&limit=1000`;
+		const url = `http://localhost:8000/api/trades?symbol=${encodeURIComponent(requestedSymbol)}&limit=1000`;
 		const response = await fetch(url);
 
 		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+		if (generation !== seedGeneration) return;
 
 		const rawTrades = await response.json();
+		if (generation !== seedGeneration) return;
 		const tradesArray = Array.isArray(rawTrades) ? rawTrades : (rawTrades.data || rawTrades);
 
 		// 1. Lock ticking
@@ -641,6 +658,7 @@ async function fetchHistoricalSeed() {
 		}
 
 	} catch (err) {
+		if (generation !== seedGeneration) return;
 		isSeeding = false; // Ensure we don't get stuck if fetch fails
 		postError(`Failed to fetch historical seed: ${err.message}`);
 	}
