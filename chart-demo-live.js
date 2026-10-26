@@ -66,7 +66,7 @@
 //     { type: 'state' }
 //
 //   Worker → Main
-//     { type: 'metadata', decimals }
+//     { type: 'metadata', priceDecimals, qtyDecimals }
 //     { type: 'seed',  data: [row, ...] }
 //     { type: 'tick',  data: row, isNewBucket }
 //     { type: 'state', running, connected }
@@ -141,6 +141,17 @@ function postState() {
 
 function postError(message) {
 	self.postMessage({ type: 'error', message });
+}
+
+function countDecimals(stepSize) {
+	if (typeof stepSize !== 'string' || !/^\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(stepSize)) {
+		return null;
+	}
+	if (Number(stepSize) <= 0) return null;
+	const [coefficient, exponentText] = stepSize.toLowerCase().split('e');
+	const fraction = (coefficient.split('.')[1] || '').replace(/0+$/, '');
+	const exponent = Number(exponentText || 0);
+	return Math.max(0, fraction.length - exponent);
 }
 
 function floorToBucket(ms) {
@@ -558,7 +569,8 @@ function processTrade(trade) {
 
 async function fetchHistoricalSeed() {
 	try {
-		let decimals = 2;
+		let priceDecimals = 2;
+		let qtyDecimals = 4;
 		try {
 			const metadataResponse = await fetch(
 				`http://localhost:8000/api/symbol-info?symbol=${encodeURIComponent(symbol)}`
@@ -572,15 +584,26 @@ async function fetchHistoricalSeed() {
 				? payload.symbols
 				: (Array.isArray(payload) ? payload : [payload]);
 			const symbolInfo = symbols.find(entry => entry && entry.symbol === symbol);
-			const precision = Number(symbolInfo?.quotePrecision ?? symbolInfo?.baseAssetPrecision);
-			if (!Number.isInteger(precision) || precision < 0) {
-				throw new Error(`No precision found for ${symbol}`);
+			if (!symbolInfo) throw new Error(`No symbol metadata found for ${symbol}`);
+			const filters = Array.isArray(symbolInfo.filters) ? symbolInfo.filters : [];
+			const priceFilter = filters.find(filter => filter.filterType === 'PRICE_FILTER');
+			const lotSizeFilter = filters.find(filter => filter.filterType === 'LOT_SIZE');
+			const pricePrecision = countDecimals(priceFilter?.tickSize);
+			const quantityPrecision = countDecimals(lotSizeFilter?.stepSize);
+			if (pricePrecision === null) {
+				console.warn(`Missing valid PRICE_FILTER tickSize for ${symbol}; using 2 decimals.`);
+			} else {
+				priceDecimals = pricePrecision;
 			}
-			decimals = precision;
+			if (quantityPrecision === null) {
+				console.warn(`Missing valid LOT_SIZE stepSize for ${symbol}; using 4 decimals.`);
+			} else {
+				qtyDecimals = quantityPrecision;
+			}
 		} catch (err) {
-			console.warn(`Failed to fetch precision for ${symbol}; using 2 decimals: ${err.message}`);
+			console.warn(`Failed to fetch trading precision for ${symbol}; using defaults: ${err.message}`);
 		}
-		self.postMessage({ type: 'metadata', decimals });
+		self.postMessage({ type: 'metadata', priceDecimals, qtyDecimals });
 
 		const url = `http://localhost:8000/api/trades?symbol=${symbol}&limit=1000`;
 		const response = await fetch(url);

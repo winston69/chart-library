@@ -73,6 +73,7 @@ import { ToolTip } from './ui/ToolTip.js';
 // ─── CONSTANTS ───
 
 let SYMBOL_DECIMALS = 2;
+let QTY_DECIMALS = 4;
 
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
 
@@ -188,6 +189,8 @@ const priceChart = new CandleStick({
 
 const volume = new Volume({
 	plane,
+	decimals: QTY_DECIMALS,
+	axisOptions: { decimals: QTY_DECIMALS },
 	xAccessor: xAcc,
 	trimTail: true
 });
@@ -333,7 +336,7 @@ function activeHandles() {
 function refreshLegend() {
 	legendCard.items = [
 		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(0) }
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(QTY_DECIMALS) }
 	];
 	const entries = {
 		bollinger: { label: 'BB Mean', layer: 'mean', color: '#845ef7' },
@@ -383,7 +386,7 @@ const legendCard = new Legend({
 	autoDetect: false,
 	items: [
 		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(0) }
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(QTY_DECIMALS) }
 	]
 });
 cardStrip.addCard(legendCard);
@@ -503,11 +506,17 @@ function ensureLiveWorkerForSource(source) {
 
 // ─── WORKER MESSAGE HANDLERS ───
 
-function setSymbolDecimals(decimals) {
-	if (!Number.isInteger(decimals) || decimals < 0) return;
-	SYMBOL_DECIMALS = decimals;
+function setSymbolPrecision(priceDecimals, qtyDecimals) {
+	if (!Number.isInteger(priceDecimals) || priceDecimals < 0
+		|| !Number.isInteger(qtyDecimals) || qtyDecimals < 0) return;
+	SYMBOL_DECIMALS = priceDecimals;
+	QTY_DECIMALS = qtyDecimals;
 	priceChart.decimals = SYMBOL_DECIMALS;
 	priceYAxis.decimals = SYMBOL_DECIMALS;
+	ohlcCard.decimals = SYMBOL_DECIMALS;
+	volume.bars.decimals = QTY_DECIMALS;
+	const volumeYAxis = plane.getYAxisForGroup(volume.yGroup);
+	if (volumeYAxis) volumeYAxis.decimals = QTY_DECIMALS;
 	plane.update();
 }
 
@@ -541,7 +550,7 @@ function handleLiveMessage(evt, source) {
 
 	switch (msg.type) {
 		case 'metadata':
-			setSymbolDecimals(msg.decimals);
+			setSymbolPrecision(msg.priceDecimals, msg.qtyDecimals);
 			break;
 		case 'seed':
 			applySeed(msg.data);
@@ -611,7 +620,7 @@ function switchSource(newSource) {
 	} else if (currentSource === 'live-kline') {
 		ensureLiveKlineWorker();
 	} else {
-		setSymbolDecimals(2);
+		setSymbolPrecision(2, 4);
 	}
 
 	updateUI();
