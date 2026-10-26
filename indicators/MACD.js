@@ -35,7 +35,14 @@ export class MACD extends BaseIndicator {
 	constructor(options = {}) {
 		super({
 			name: 'macd',
+			scaleType: options.scaleType || 'oscillator',
 			yGroup: options.yGroup || 'macd-group',
+			bandPosition: options.bandPosition || 'top',
+			bandHeight: options.bandHeight !== undefined ? options.bandHeight : 0.20,
+			axisOptions: {
+				label: 'MACD',
+				...(options.axisOptions || {})
+			},
 			plane: options.plane
 		});
 

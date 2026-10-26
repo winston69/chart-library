@@ -23,6 +23,7 @@ import { Utils } from './Utils.js';
 import { Scale } from './Scale.js';
 import { Events, EventEmitter } from './Events.js';
 import { calculateBandLayout, calculateMargins, calculatePlotArea } from './ChartLayout.js';
+import { YAxis } from '../axes/YAxis.js';
 
 const css = CSS.cartesianPlane;
 
@@ -98,6 +99,7 @@ export class CartesianPlane {
 		this._dataLayers = [];
 		this._yGroups = Object.create(null);
 		this._yGroupOrder = [];
+		this._scaleTypeGroups = Object.create(null);
 		this._clipRects = Object.create(null);
 		this._clipPaths = Object.create(null);
 
@@ -594,7 +596,7 @@ export class CartesianPlane {
 		if (layer.isDataLayer) {
 			const groupId = options.yGroup || options.group || 'default';
 			const height = options.height || options.rowHeight || 0.3;
-			this._addToYGroup(groupId, layer, height);
+			this._addToYGroup(groupId, layer, height, options);
 			this._decimalsDirty = true;
 			if (typeof layer.setWindowSize === 'function') {
 				layer.setWindowSize(this.maxData);
@@ -713,6 +715,7 @@ export class CartesianPlane {
 		this._dataLayers = [];
 		this._yGroups = Object.create(null);
 		this._yGroupOrder = [];
+		this._scaleTypeGroups = Object.create(null);
 
 		const bandGroups = this._elements.bandGroups;
 		for (const gid in bandGroups) {
@@ -742,6 +745,144 @@ export class CartesianPlane {
 	// Y-GROUP MANAGEMENT
 	// ──────────────────────────────────────────────────────────
 
+	_createYGroup(groupId, options = {}) {
+		const domain = options.axisOptions && options.axisOptions.domain;
+		if (domain !== undefined
+			&& (!Array.isArray(domain) || domain.length !== 2
+				|| !domain.every(Number.isFinite) || domain[0] === domain[1])) {
+			throw new Error(`CartesianPlane: invalid y-axis domain for group "${groupId}".`);
+		}
+
+		const group = {
+			id: groupId,
+			height: options.bandHeight !== undefined ? options.bandHeight : 0.3,
+			bandHeight: options.bandHeight,
+			flexibleHeight: !!options.flexibleHeight,
+			bandPosition: options.bandPosition || 'middle',
+			rows: [],
+			yScale: new Scale({
+				domain: domain ? domain.slice() : [0, 1],
+				range: [this.plotBottom, this.plotTop],
+				type: 'linear',
+				nice: false,
+				space: 'svg'
+			}),
+			domain: domain ? domain.slice() : [0, 1],
+			fixedDomain: domain ? domain.slice() : null,
+			_yTop: 0,
+			_yBottom: 0,
+			_yRange: [0, 0],
+			_heightPx: 0,
+			_heightFraction: 0,
+			_normalizedHeight: options.bandHeight,
+			dirty: true,
+			yLocked: false,
+			_createdAt: Date.now(),
+			scaleType: options.scaleType || null,
+			axis: null
+		};
+		this._yGroups[groupId] = group;
+
+		const order = this._yGroupOrder;
+		let insertAt;
+		if (group.bandPosition === 'top') {
+			insertAt = order.findIndex(id => this._yGroups[id].bandPosition === 'top');
+			if (insertAt === -1) insertAt = order.length;
+		} else if (group.bandPosition === 'bottom') {
+			insertAt = 0;
+			while (insertAt < order.length
+				&& this._yGroups[order[insertAt]].bandPosition === 'bottom') insertAt++;
+		} else {
+			insertAt = order.findIndex(id => this._yGroups[id].bandPosition === 'top');
+			if (insertAt === -1) insertAt = order.length;
+		}
+		order.splice(insertAt, 0, groupId);
+		this.addBandGroup(groupId);
+
+		if (group.scaleType) this._registerScaleTypeGroup(group.scaleType, groupId);
+		this._layoutDirty = true;
+		this._domainDirty = true;
+		this._decimalsDirty = true;
+		return group;
+	}
+
+	_registerScaleTypeGroup(scaleType, groupId) {
+		const group = this._yGroups[groupId];
+		if (group) group.scaleType = scaleType;
+		const groups = this._scaleTypeGroups[scaleType] || (this._scaleTypeGroups[scaleType] = []);
+		if (groups.indexOf(groupId) === -1) groups.push(groupId);
+	}
+
+	/**
+	 * Resolves a scale type to its band, creating a band and owned axis
+	 * when no matching preferred band exists.
+	 */
+	resolveYGroup(scaleType, options = {}) {
+		if (typeof scaleType !== 'string' || !scaleType) {
+			throw new Error('CartesianPlane.resolveYGroup: scaleType is required.');
+		}
+
+		const preferredGroupId = options.preferredGroupId || null;
+		const matchingGroups = this._scaleTypeGroups[scaleType] || [];
+		if (preferredGroupId && matchingGroups.indexOf(preferredGroupId) !== -1) {
+			return preferredGroupId;
+		}
+		if (!preferredGroupId && matchingGroups.length > 0) {
+			return matchingGroups[0];
+		}
+
+		const groupId = preferredGroupId || `${scaleType}-group`;
+		const existing = this._yGroups[groupId];
+		if (existing) {
+			if (existing.scaleType && existing.scaleType !== scaleType) {
+				throw new Error(`CartesianPlane: group "${groupId}" already belongs to "${existing.scaleType}".`);
+			}
+			this._registerScaleTypeGroup(scaleType, groupId);
+			return groupId;
+		}
+
+		const axisOptions = { ...(options.axisOptions || {}) };
+		const group = this._createYGroup(groupId, {
+			scaleType,
+			axisOptions,
+			bandPosition: options.bandPosition,
+			bandHeight: options.bandHeight
+		});
+		if (!axisOptions.hide) {
+			const axis = new YAxis({
+				...axisOptions,
+				id: axisOptions.id || `${this.id}-${groupId}-y-axis`,
+				name: axisOptions.name || axisOptions.label || options.name || scaleType,
+				label: axisOptions.label || options.name || scaleType,
+				plane: this,
+				scale: group.yScale,
+				bandGroupId: groupId
+			});
+			group.axis = axis;
+			this.addLayer(axis);
+		}
+		return groupId;
+	}
+
+	getYAxisForGroup(groupId) {
+		const group = this._yGroups[groupId];
+		return group ? group.axis : null;
+	}
+
+	setYAxisForGroup(groupId, axis) {
+		const group = this._yGroups[groupId];
+		if (!group) {
+			throw new Error(`CartesianPlane: unknown y-group "${groupId}".`);
+		}
+		if (!axis) {
+			throw new Error('CartesianPlane.setYAxisForGroup: axis is required.');
+		}
+		axis.bandGroupId = groupId;
+		axis.scale = group.yScale;
+		group.axis = axis;
+		return this;
+	}
+
 	/**
 	 * Registers a chart into the named y-group, creating the group first
 	 * if it doesn't exist. If the chart is already a row in the group,
@@ -751,23 +892,22 @@ export class CartesianPlane {
 	 * @param {object} chart
 	 * @param {number} height
 	 */
-	_addToYGroup(groupId, chart, height) {
+	_addToYGroup(groupId, chart, height, options = {}) {
 		let group = this._yGroups[groupId];
 		if (!group) {
-			group = {
-				id: groupId, height, rows: [], yScale: null,
-				domain: [0, 1], _yTop: 0, _yBottom: 0,
-				_yRange: [0, 0], _heightPx: 0, _heightFraction: 0,
-				_normalizedHeight: height, dirty: true, yLocked: false,
-				_createdAt: Date.now()
-			};
-			this._yGroups[groupId] = group;
-			this._yGroupOrder.push(groupId);
-			this.addBandGroup(groupId);
+			group = this._createYGroup(groupId, {
+				scaleType: options.scaleType || (chart.type === 'candle' ? 'price' : null),
+				bandPosition: options.bandPosition || (chart.type === 'candle' ? 'middle' : 'middle'),
+				bandHeight: options.bandHeight,
+				flexibleHeight: options.flexibleHeight
+			});
+		} else if (options.scaleType) {
+			this._registerScaleTypeGroup(options.scaleType, groupId);
 		}
 
 		chart._yGroupId = groupId;
 		chart._rowHeight = height;
+		if (group.bandHeight === undefined && !group.flexibleHeight) group.height = height;
 
 		const existing = group.rows.find(r => r.chart === chart);
 		if (existing) {
@@ -852,6 +992,9 @@ export class CartesianPlane {
 	removeBandGroup(groupId) {
 		const group = this._yGroups[groupId];
 		if (!group) return;
+		if (group.axis && this.getLayer(group.axis.id)) {
+			this.removeLayer(group.axis);
+		}
 
 		const bandEl = this._elements.bandGroups[groupId];
 		if (bandEl && bandEl.parentNode) bandEl.parentNode.removeChild(bandEl);
@@ -863,6 +1006,14 @@ export class CartesianPlane {
 		delete this._clipPaths[groupId];
 
 		delete this._yGroups[groupId];
+		if (group.scaleType) {
+			const scaleGroups = this._scaleTypeGroups[group.scaleType];
+			if (scaleGroups) {
+				const scaleIdx = scaleGroups.indexOf(groupId);
+				if (scaleIdx !== -1) scaleGroups.splice(scaleIdx, 1);
+				if (scaleGroups.length === 0) delete this._scaleTypeGroups[group.scaleType];
+			}
+		}
 		const orderIdx = this._yGroupOrder.indexOf(groupId);
 		if (orderIdx !== -1) this._yGroupOrder.splice(orderIdx, 1);
 
@@ -1375,7 +1526,10 @@ export class CartesianPlane {
 				id: group.id,
 				height: group._userHeight !== undefined
 					? group._userHeight
-					: (group.rows[0] ? group.rows[0].height : (group.height || 0.3))
+					: group.bandHeight !== undefined
+						? group.bandHeight
+					: (group.rows[0] ? group.rows[0].height : (group.height || 0.3)),
+				flexible: group._userHeight === undefined && group.flexibleHeight
 			}))
 		});
 		if (bandLayout.height <= 0) return;
@@ -1455,7 +1609,11 @@ export class CartesianPlane {
 			let hasData = false;
 			const rows = group.rows;
 
-			if (this._xDomainLocked) {
+			if (group.fixedDomain) {
+				yMin = group.fixedDomain[0];
+				yMax = group.fixedDomain[1];
+				hasData = true;
+			} else if (this._xDomainLocked) {
 				const visibleDomain = this._getVisibleYDomain(group, this.xScale.domain);
 				yMin = visibleDomain[0];
 				yMax = visibleDomain[1];
@@ -1541,7 +1699,7 @@ export class CartesianPlane {
 			const group = this._yGroups[groupId];
 			if (group.yLocked) continue;
 
-			const nextDomain = this._getVisibleYDomain(group, xDomain);
+			const nextDomain = group.fixedDomain || this._getVisibleYDomain(group, xDomain);
 			const [min, max] = nextDomain;
 			const oldDomain = group.yScale ? group.yScale.domain : group.domain;
 			if (oldDomain[0] === min && oldDomain[1] === max) continue;

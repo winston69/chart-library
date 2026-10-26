@@ -16,8 +16,9 @@ This file explains what the code *means* and where it's going.
 
 ## State
 
-- Four bands, bottom to top: volume, RSI, price, MACD.
-  Top to bottom: MACD, price, RSI, volume.
+- Default bands, bottom to top: volume, price. RSI and MACD
+  standalone bands are added above Price when enabled; price
+  overlays share the candle band.
 - All layers are primitive: one class, one visual concept.
 - The plane handles slots, y-groups, layout, margins, and domain
   union. It knows nothing about specific indicators.
@@ -116,6 +117,18 @@ Indicator computers (worker-side, pure math):
 ## Recent cleanups
 
 ### Session 2026-10-26
+
+Declarative indicator layout
+- Indicators declare their scale type, preferred band position,
+  preferred band height, and axis options through `BaseIndicator`.
+- `CartesianPlane.resolveYGroup()` reuses registered bands or
+  creates a band and its owned y-axis for a new standalone indicator.
+- Price overlays share the CandleStick group. Their removal does
+  not remove the price band or interrupt candle auto-fit.
+- Flexible bands use remaining plot height after fixed indicator
+  heights; fixed heights are proportionally normalized if they
+  exceed the plot. The demo starts with Price and Volume, with
+  optional indicators managed by View toolbar toggles.
 
 Architectural weight — layout boundary
 - Extracted pure margin aggregation, plot-bound calculations, and

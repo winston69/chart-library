@@ -32,7 +32,11 @@ export class VWMA extends BaseIndicator {
 	constructor(options = {}) {
 		super({
 			name: 'vwma',
+			scaleType: options.scaleType || 'price',
 			yGroup: options.yGroup || DEFAULT_Y_GROUP,
+			bandPosition: options.bandPosition || 'middle',
+			bandHeight: options.bandHeight,
+			axisOptions: options.axisOptions,
 			plane: options.plane
 		});
 

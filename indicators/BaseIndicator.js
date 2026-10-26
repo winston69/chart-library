@@ -2,7 +2,8 @@
 // indicators/BaseIndicator.js
 //
 // Base class for rendering indicator factories. Owns the layer
-// list, the y-group, the primary layer, and the dispatch methods
+// list, scale and axis preferences, resolved y-group, primary
+// layer, and the dispatch methods
 // that forward append/update/setData calls to every owned layer.
 //
 // Main-thread only. Imports nothing worker-safe; the worker never
@@ -13,7 +14,15 @@
 //
 //   class Foo extends BaseIndicator {
 //       constructor(options = {}) {
-//           super({ name: 'foo', yGroup: 'foo-group', ...options });
+//           super({
+//               name: 'foo',
+//               scaleType: 'oscillator',
+//               yGroup: 'foo-group',
+//               bandPosition: 'top',
+//               bandHeight: 0.2,
+//               axisOptions: { decimals: 0 },
+//               ...options
+//           });
 //
 //           const line = new Line({ ... });
 //           this.line = line;
@@ -54,13 +63,31 @@ export class BaseIndicator {
 		if (!options.name) {
 			throw new Error(`${this.constructor.name}: name is required.`);
 		}
-		if (!options.yGroup) {
-			throw new Error(`${this.constructor.name}: yGroup is required.`);
+		if (!options.scaleType) {
+			throw new Error(`${this.constructor.name}: scaleType is required.`);
+		}
+		if (options.bandPosition !== undefined
+			&& !['top', 'middle', 'bottom'].includes(options.bandPosition)) {
+			throw new Error(`${this.constructor.name}: invalid bandPosition "${options.bandPosition}".`);
+		}
+		if (options.bandHeight !== undefined
+			&& (!Number.isFinite(options.bandHeight) || options.bandHeight < 0 || options.bandHeight > 1)) {
+			throw new Error(`${this.constructor.name}: bandHeight must be between 0 and 1.`);
 		}
 
 		this.plane = options.plane;
 		this.name = options.name;
-		this.yGroup = options.yGroup;
+		this.scaleType = options.scaleType;
+		this.axisOptions = { ...(options.axisOptions || {}) };
+		this.bandPosition = options.bandPosition || 'middle';
+		this.bandHeight = options.bandHeight;
+		this.yGroup = this.plane.resolveYGroup(this.scaleType, {
+			preferredGroupId: options.yGroup,
+			axisOptions: this.axisOptions,
+			bandPosition: this.bandPosition,
+			bandHeight: this.bandHeight,
+			name: this.name
+		});
 
 		this.layers = [];
 		this.primaryLayer = null;

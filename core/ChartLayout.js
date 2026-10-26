@@ -30,14 +30,47 @@ export function calculateBandLayout({ width, height, margins, bands }) {
 	const plot = calculatePlotArea(width, height, margins);
 	const normalizedBands = bands.map(band => {
 		let normalizedHeight = band.height;
-		if (!isFinite(normalizedHeight) || normalizedHeight <= 0) normalizedHeight = 0.3;
+		if (!isFinite(normalizedHeight) || normalizedHeight < 0) {
+			normalizedHeight = band.flexible ? 0 : 0.3;
+		}
 		return { ...band, normalizedHeight };
 	});
 	const total = normalizedBands.reduce((sum, band) => sum + band.normalizedHeight, 0);
+	const flexibleCount = normalizedBands.reduce((count, band) => count + (band.flexible ? 1 : 0), 0);
+	const heightFractions = new Array(normalizedBands.length);
+
+	if (flexibleCount > 0) {
+		const fixedTotal = normalizedBands.reduce(
+			(sum, band) => sum + (band.flexible ? 0 : band.normalizedHeight),
+			0
+		);
+		if (fixedTotal > 1) {
+			for (let i = 0; i < normalizedBands.length; i++) {
+				const band = normalizedBands[i];
+				heightFractions[i] = band.flexible
+					? 0
+					: band.normalizedHeight / fixedTotal;
+			}
+		} else {
+			const flexibleFraction = (1 - fixedTotal) / flexibleCount;
+			for (let i = 0; i < normalizedBands.length; i++) {
+				const band = normalizedBands[i];
+				heightFractions[i] = band.flexible
+					? flexibleFraction
+					: band.normalizedHeight;
+			}
+		}
+	} else {
+		for (let i = 0; i < normalizedBands.length; i++) {
+			heightFractions[i] = total > 0
+				? normalizedBands[i].normalizedHeight / total
+				: 0;
+		}
+	}
 
 	let bottom = plot.bottom;
-	const layout = normalizedBands.map(band => {
-		const heightFraction = band.normalizedHeight / total;
+	const layout = normalizedBands.map((band, index) => {
+		const heightFraction = heightFractions[index];
 		const bandHeight = plot.height * heightFraction;
 		const top = bottom - bandHeight;
 		const result = {

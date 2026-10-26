@@ -1,14 +1,13 @@
 // ──────────────────────────────────────────────────────────────
 // chart-demo.js
 //
-// Demo wiring. Four bands, bottom to top:
-//   volume, rsi, price, macd
+// Demo wiring. Bands are resolved from indicator declarations;
+// only price and volume are present until standalone indicators are toggled on.
 //
 // Band stack (bottom → top):
 //   volume  — Volume indicator (BarChart)
-//   rsi     — RSI indicator (line + 70/30 levels)
-//   price   — candles + Bollinger + SMA + VWMA
-//   macd    — MACD indicator (histogram + line + signal)
+//   price   — candles + optional Bollinger + SMA + VWMA
+//   optional oscillator bands are inserted above the price band
 //
 // All indicators are classes extending BaseIndicator. They own
 // their layers and expose a uniform dispatch contract:
@@ -77,13 +76,6 @@ import { ToolTip } from './ui/ToolTip.js';
 const SYMBOL_DECIMALS = 2;
 
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
-
-const BAND_HEIGHTS = {
-	macd: 0.20,
-	price: 0.50,
-	rsi: 0.15,
-	volume: 0.15
-};
 
 // ─── CONTROL OPTIONS ───
 
@@ -193,63 +185,20 @@ const priceChart = new CandleStick({
 	trimTail: true
 });
 
-// ─── INDICATORS ───
-// Registered bottom-fiFrst so _yGroupOrder stacks them top-down.
-// Order: volume, rsi, price, macd.
+// ─── BASE BANDS ───
 
-// 1. Volume — bottom band
 const volume = new Volume({
 	plane,
-	height: BAND_HEIGHTS.volume,
 	xAccessor: xAcc,
 	trimTail: true
 });
 
-// Price layer registered after volume, before the price-group
-// overlays that render behind it.
-plane.addLayer(priceChart, { yGroup: 'price-group', height: BAND_HEIGHTS.price });
-
-// 2. RSI
-const rsi = new RSI({
-	plane,
-	height: BAND_HEIGHTS.rsi,
-	decimals: SYMBOL_DECIMALS,
-	xAccessor: xAcc,
-	trimTail: true
-});
-
-// 3. Price band overlays
-const bollinger = new Bollinger({
-	plane,
-	height: BAND_HEIGHTS.price,
-	decimals: SYMBOL_DECIMALS,
-	xAccessor: xAcc,
-	trimTail: true
-});
-
-const sma = new SMA({
-	plane,
-	height: BAND_HEIGHTS.price,
-	decimals: SYMBOL_DECIMALS,
-	xAccessor: xAcc,
-	trimTail: true
-});
-
-const vwma = new VWMA({
-	plane,
-	height: BAND_HEIGHTS.price,
-	decimals: SYMBOL_DECIMALS,
-	xAccessor: xAcc,
-	trimTail: true
-});
-
-// 4. MACD — top band
-const macd = new MACD({
-	plane,
-	height: BAND_HEIGHTS.macd,
-	decimals: SYMBOL_DECIMALS + 4,
-	xAccessor: xAcc,
-	trimTail: true
+plane.addLayer(priceChart, {
+	yGroup: 'price-group',
+	height: 1,
+	scaleType: 'price',
+	bandPosition: 'middle',
+	flexibleHeight: true
 });
 
 // ─── AXES ───
@@ -289,53 +238,11 @@ const priceYAxis = new YAxis({
 	showMicroTicks: true
 });
 
-const volumeYAxis = new YAxis({
-	id: 'volume-y-axis',
-	label: 'Volume',
-	orientation: 'right',
-	positionIntent: 'outside',
-	scale: plane.getYScaleForChart(volume.bars),
-	bandGroupId: 'volume-group',
-	showGrid: false,
-	showTicks: true,
-	showTickLabels: true,
-	showLabel: true,
-	decimals: 0
-});
-
-const macdYAxis = new YAxis({
-	id: 'macd-y-axis',
-	label: 'MACD',
-	orientation: 'right',
-	positionIntent: 'outside',
-	scale: plane.getYScaleForChart(macd.primaryLayer),
-	bandGroupId: 'macd-group',
-	showGrid: false,
-	showTicks: true,
-	showTickLabels: true,
-	showLabel: true,
-	decimals: 0
-});
-
-const rsiYAxis = new YAxis({
-	id: 'rsi-y-axis',
-	label: 'RSI',
-	orientation: 'right',
-	positionIntent: 'outside',
-	scale: plane.getYScaleForChart(rsi.primaryLayer),
-	bandGroupId: 'rsi-group',
-	showGrid: false,
-	showTicks: true,
-	showTickLabels: true,
-	showLabel: true,
-	decimals: 0
-});
+plane.setYAxisForGroup(priceChart._yGroupId, priceYAxis);
+const volumeYAxis = plane.getYAxisForGroup(volume.yGroup);
 
 plane.addLayer(xAxis);
-plane.addLayer(volumeYAxis);
-plane.addLayer(rsiYAxis);
 plane.addLayer(priceYAxis);
-plane.addLayer(macdYAxis);
 
 // ─── REFERENCE LINE ───
 
@@ -357,12 +264,9 @@ plane.addLayer(referenceLine);
 const crosshair = new CrosshairLayer({
 	id: 'crosshair',
 	xAxis,
-	yAxes: {
-		'macd-group': macdYAxis,
-		'price-group': priceYAxis,
-		'rsi-group': rsiYAxis,
-		'volume-group': volumeYAxis
-	}
+	yAxes: new Proxy(Object.create(null), {
+		get: (_, groupId) => plane.getYAxisForGroup(groupId)
+	})
 });
 
 // ─── CARD STRIP ───
@@ -402,6 +306,74 @@ plane.addLayer(interaction);
 
 // ─── CARDS ───
 
+const indicatorInstances = Object.create(null);
+let latestRows = priceChart.data;
+
+const indicatorFactories = {
+	bollinger: () => new Bollinger({
+		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
+	}),
+	macd: () => new MACD({
+		plane, decimals: SYMBOL_DECIMALS + 4, xAccessor: xAcc, trimTail: true
+	}),
+	rsi: () => new RSI({
+		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
+	}),
+	sma: () => new SMA({
+		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
+	}),
+	vwma: () => new VWMA({
+		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
+	})
+};
+
+function activeHandles() {
+	return [priceChart, volume, ...Object.values(indicatorInstances)];
+}
+
+function refreshLegend() {
+	legendCard.items = [
+		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(0) }
+	];
+	const entries = {
+		bollinger: { label: 'BB Mean', layer: 'mean', color: '#845ef7' },
+		macd: { label: 'MACD', layer: 'line', color: '#22d3ee' },
+		rsi: { label: 'RSI', layer: 'line', color: '#ffd43b' },
+		sma: { label: 'SMA', layer: 'line', color: '#f783ac' },
+		vwma: { label: 'VWMA', layer: 'line', color: '#ffa94d' }
+	};
+	for (const [name, entry] of Object.entries(entries)) {
+		const indicator = indicatorInstances[name];
+		if (indicator && indicator[entry.layer]) {
+			legendCard.items.push({
+				label: entry.label,
+				layer: indicator[entry.layer],
+				color: entry.color,
+				format: v => v.toFixed(SYMBOL_DECIMALS)
+			});
+		}
+	}
+	legendCard._itemsDirty = true;
+	legendCard.update();
+}
+
+function setIndicatorEnabled(name, enabled) {
+	const current = indicatorInstances[name];
+	if (enabled && !current) {
+		const factory = indicatorFactories[name];
+		if (!factory) throw new Error(`Unknown indicator "${name}".`);
+		const indicator = factory();
+		indicatorInstances[name] = indicator;
+		indicator.setData(latestRows);
+	} else if (!enabled && current) {
+		current.remove();
+		delete indicatorInstances[name];
+	}
+	refreshLegend();
+	plane.update();
+}
+
 const legendCard = new Legend({
 	id: 'main-legend',
 	title: '🎯 Price Update',
@@ -412,10 +384,6 @@ const legendCard = new Legend({
 	autoDetect: false,
 	items: [
 		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'SMA', layer: sma.line, color: '#f783ac', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'VWMA', layer: vwma.line, color: '#ffa94d', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'BB Mean', layer: bollinger.mean, color: '#845ef7', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'MACD', layer: macd.line, color: '#22d3ee', format: v => v.toFixed(SYMBOL_DECIMALS) },
 		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(0) }
 	]
 });
@@ -456,17 +424,20 @@ crosshair.onMove = (payload) => {
 
 // ─── HANDLE LIST ───
 
-const handles = [priceChart, volume, rsi, bollinger, sma, vwma, macd];
-
 // ─── DATA APPLICATION ───
 
 function applySeed(rows) {
-	for (const h of handles) h.setData(rows);
+	priceChart.setData(rows);
+	latestRows = priceChart.data;
+	for (const h of activeHandles()) {
+		if (h !== priceChart) h.setData(latestRows);
+	}
 	plane.update();
 }
 
 function applyTick(row) {
-	for (const h of handles) h.appendOrUpdate(row, bucketKey);
+	for (const h of activeHandles()) h.appendOrUpdate(row, bucketKey);
+	latestRows = priceChart.data;
 	plane.update();
 }
 
@@ -668,7 +639,8 @@ function stopCurrentWorker() {
 function resetData() {
 	// Clear the chart up front. The worker reseeds (demo) or
 	// reconnects and fetches a fresh seed (live).
-	for (const h of handles) h.setData([]);
+	for (const h of activeHandles()) h.setData([]);
+	latestRows = priceChart.data;
 
 	if (currentSource === 'demo') {
 		demoWorker.postMessage({ type: 'reset' });
@@ -700,6 +672,12 @@ function updateUI() {
 	// Demo cluster: enabled only when source === 'demo'.
 	const demoEnabled = currentSource === 'demo';
 	for (const btn of demoControls) btn.setDisabled(!demoEnabled);
+
+	for (const [name, btn] of Object.entries(indicatorToggleButtons)) {
+		btn.setSelected(!!indicatorInstances[name]);
+	}
+	macdAxisButton.setDisabled(!plane.getYAxisForGroup('macd-group'));
+	if (!plane.getYAxisForGroup('macd-group')) macdAxisButton.setSelected(false);
 }
 
 // ─── TOOLBAR ───
@@ -818,6 +796,44 @@ function makeAxisToggle({ id, icon, tooltip, layer }) {
 	return btn;
 }
 
+function makeGroupAxisToggle({ id, groupId, tooltip }) {
+	const btn = new Button({
+		id,
+		icon: 'axisValue',
+		size: 'sm',
+		variant: 'secondary',
+		tooltip,
+		selected: false,
+		disabled: true,
+		onClick: () => {
+			const axis = plane.getYAxisForGroup(groupId);
+			if (!axis) return;
+			if (plane.getLayer(axis.id)) plane.removeLayer(axis);
+			else plane.addLayer(axis, axis._addOptions);
+			btn.setSelected(!!plane.getLayer(axis.id));
+		}
+	});
+	return btn;
+}
+
+function makeIndicatorToggle({ name, label, icon }) {
+	const btn = new Button({
+		id: `toggle-indicator-${name}`,
+		icon,
+		size: 'sm',
+		variant: 'secondary',
+		tooltip: `Toggle ${label}`,
+		selected: false,
+		onClick: () => {
+			const enabled = !btn.selected;
+			setIndicatorEnabled(name, enabled);
+			btn.setSelected(enabled);
+			updateUI();
+		}
+	});
+	return btn;
+}
+
 const legendButton = makeCardToggle({
 	id: 'toggle-legend',
 	icon: 'legend',
@@ -860,12 +876,35 @@ const volumeAxisButton = makeAxisToggle({
 	layer: volumeYAxis
 });
 
-const macdAxisButton = makeAxisToggle({
+const macdAxisButton = makeGroupAxisToggle({
 	id: 'toggle-macd-axis',
-	icon: 'axisValue',
-	tooltip: 'Toggle MACD axis',
-	layer: macdYAxis
+	groupId: 'macd-group',
+	tooltip: 'Toggle MACD axis'
 });
+
+const bollingerButton = makeIndicatorToggle({
+	name: 'bollinger', label: 'Bollinger', icon: 'strategy'
+});
+const macdButton = makeIndicatorToggle({
+	name: 'macd', label: 'MACD', icon: 'strategy'
+});
+const rsiButton = makeIndicatorToggle({
+	name: 'rsi', label: 'RSI', icon: 'strategy'
+});
+const smaButton = makeIndicatorToggle({
+	name: 'sma', label: 'SMA', icon: 'axisValue'
+});
+const vwmaButton = makeIndicatorToggle({
+	name: 'vwma', label: 'VWMA', icon: 'axisValue'
+});
+
+const indicatorToggleButtons = {
+	bollinger: bollingerButton,
+	macd: macdButton,
+	rsi: rsiButton,
+	sma: smaButton,
+	vwma: vwmaButton
+};
 
 // ─── Data controls ───
 
@@ -1023,6 +1062,11 @@ viewGroup.addItem(timeAxisButton);
 viewGroup.addItem(priceAxisButton);
 viewGroup.addItem(volumeAxisButton);
 viewGroup.addItem(macdAxisButton);
+viewGroup.addItem(bollingerButton);
+viewGroup.addItem(macdButton);
+viewGroup.addItem(rsiButton);
+viewGroup.addItem(smaButton);
+viewGroup.addItem(vwmaButton);
 
 const dataGroup = toolbar.addGroup({ id: 'data', label: 'Data' });
 dataGroup.addItem(symbolDropdown);

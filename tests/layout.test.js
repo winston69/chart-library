@@ -85,6 +85,60 @@ test('band layout normalizes ratios and stacks in order from the plot bottom', (
 	]);
 });
 
+test('band layout gives flexible bands the remaining height during toggles', () => {
+	const layout = calculateBandLayout({
+		width: 100,
+		height: 100,
+		margins: noMargins,
+		bands: [
+			{ id: 'volume', height: 0.15 },
+			{ id: 'price', height: 0, flexible: true },
+			{ id: 'macd', height: 0.20 }
+		]
+	});
+
+	assert.deepEqual(layout.bands.map(({ id, heightFraction }) => ({ id, heightFraction })), [
+		{ id: 'volume', heightFraction: 0.15 },
+		{ id: 'price', heightFraction: 0.65 },
+		{ id: 'macd', heightFraction: 0.20 }
+	]);
+
+	const removedMacd = calculateBandLayout({
+		width: 100,
+		height: 100,
+		margins: noMargins,
+		bands: [
+			{ id: 'volume', height: 0.15 },
+			{ id: 'price', height: 0, flexible: true }
+		]
+	});
+
+	assert.deepEqual(removedMacd.bands.map(({ id, heightFraction }) => ({ id, heightFraction })), [
+		{ id: 'volume', heightFraction: 0.15 },
+		{ id: 'price', heightFraction: 0.85 }
+	]);
+});
+
+test('band layout caps overcommitted fixed heights at the available plot height', () => {
+	const layout = calculateBandLayout({
+		width: 100,
+		height: 100,
+		margins: noMargins,
+		bands: [
+			{ id: 'first', height: 0.8 },
+			{ id: 'flex', height: 0, flexible: true },
+			{ id: 'second', height: 0.7 }
+		]
+	});
+
+	const fractions = layout.bands.map(band => band.heightFraction);
+	assert.ok(fractions.every(Number.isFinite));
+	assert.ok(Math.abs(fractions.reduce((sum, fraction) => sum + fraction, 0) - 1) < 1e-12);
+	assert.ok(Math.abs(fractions[0] - 8 / 15) < 1e-12);
+	assert.equal(fractions[1], 0);
+	assert.ok(Math.abs(fractions[2] - 7 / 15) < 1e-12);
+});
+
 test('autoFitVisibleY aggregates visible layer domains and pads each band', () => {
 	const plane = new CartesianPlane({ xDomain: [0, 10] });
 	const yScale = { domain: [-100, 100] };

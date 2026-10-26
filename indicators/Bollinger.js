@@ -44,7 +44,11 @@ export class Bollinger extends BaseIndicator {
 	constructor(options = {}) {
 		super({
 			name: 'bollinger',
+			scaleType: options.scaleType || 'price',
 			yGroup: options.yGroup || 'price-group',
+			bandPosition: options.bandPosition || 'middle',
+			bandHeight: options.bandHeight,
+			axisOptions: options.axisOptions,
 			plane: options.plane
 		});
 

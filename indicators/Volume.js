@@ -37,7 +37,15 @@ export class Volume extends BaseIndicator {
 	constructor(options = {}) {
 		super({
 			name: 'volume',
+			scaleType: options.scaleType || 'volume',
 			yGroup: options.yGroup || DEFAULT_Y_GROUP,
+			bandPosition: options.bandPosition || 'bottom',
+			bandHeight: options.bandHeight !== undefined ? options.bandHeight : 0.15,
+			axisOptions: {
+				label: 'Volume',
+				decimals: 0,
+				...(options.axisOptions || {})
+			},
 			plane: options.plane
 		});
 

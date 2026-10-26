@@ -37,7 +37,16 @@ export class RSI extends BaseIndicator {
 	constructor(options = {}) {
 		super({
 			name: 'rsi',
+			scaleType: options.scaleType || 'oscillator',
 			yGroup: options.yGroup || 'rsi-group',
+			bandPosition: options.bandPosition || 'top',
+			bandHeight: options.bandHeight !== undefined ? options.bandHeight : 0.15,
+			axisOptions: {
+				label: 'RSI',
+				domain: [0, 100],
+				decimals: 0,
+				...(options.axisOptions || {})
+			},
 			plane: options.plane
 		});
 
