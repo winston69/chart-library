@@ -48,7 +48,7 @@ Primitives:
 - `CrosshairLayer`, `InteractionLayer` — pointer behaviors.
 
 Card layers (HTML overlay): `CardStrip`, `Legend`, `OHLCCard`, `InfoCard`.
-UI layers: `Button`, `Checklist`, `Dropdown`, `ToolBar`, `ToolTip`.
+UI layers: `Button`, `Checklist`, `Dropdown`, `Loader`, `ToolBar`, `ToolTip`.
 
 Indicator classes (main-thread rendering):
 - `BaseIndicator` — base class owning layer list, dispatch.

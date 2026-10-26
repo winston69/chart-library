@@ -203,6 +203,12 @@ export const CSS = {
 		content: 'tooltip-content'
 	},
 
+	loader: {
+		container: 'loader-container',
+		spinner: 'loader-spinner',
+		message: 'loader-message'
+	},
+
 	// ─── Cards ───
 	cardStrip: {
 		container: 'cs-container',

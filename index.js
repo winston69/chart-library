@@ -57,3 +57,4 @@ export { Button } from './ui/Button.js';
 export { Checklist } from './ui/Checklist.js';
 export { ToolBar } from './ui/ToolBar.js';
 export { ToolTip } from './ui/ToolTip.js';
+export { Loader } from './ui/Loader.js';

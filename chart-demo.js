@@ -69,6 +69,7 @@ import { Dropdown } from './ui/Dropdown.js';
 import { Checklist } from './ui/Checklist.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
+import { Loader } from './ui/Loader.js';
 
 // ─── CONSTANTS ───
 
@@ -114,6 +115,7 @@ let currentMaxData = 7 * 86400000;         // matches plane.maxData
 let currentSymbol = 'BTCPHP';              // default live symbol
 let currentSource = 'demo';                // 'demo' | 'live' | 'live-kline'
 let feedRunning = false;                   // mirrors the active worker's state
+let sourceChangePending = false;
 
 function currentBucketMs() { return currentTimeframe.value; }
 function currentWindowMs() { return currentTimeframe.windowMs; }
@@ -153,6 +155,8 @@ const plane = new CartesianPlane({
 });
 
 plane.mount(container);
+
+const loader = new Loader({ container: plane._elements.container });
 
 // ─── TOOLTIP ───
 
@@ -476,6 +480,10 @@ function ensureLiveWorker() {
 	liveWorker.onmessage = (evt) => handleLiveMessage(evt, 'live');
 	liveWorker.onerror = (err) => {
 		console.error('[live feed worker]', err.message || err);
+		if (currentSource === 'live') {
+			sourceChangePending = false;
+			loader.hide();
+		}
 	};
 
 	liveWorker.postMessage(liveWorkerConfig('live'));
@@ -490,6 +498,10 @@ function ensureLiveKlineWorker() {
 	liveKlineWorker.onmessage = (evt) => handleLiveMessage(evt, 'live-kline');
 	liveKlineWorker.onerror = (err) => {
 		console.error('[live Kline worker]', err.message || err);
+		if (currentSource === 'live-kline') {
+			sourceChangePending = false;
+			loader.hide();
+		}
 	};
 	liveKlineWorker.postMessage(liveWorkerConfig('live-kline'));
 
@@ -525,6 +537,10 @@ function handleDemoMessage(evt) {
 	switch (msg.type) {
 		case 'seed':
 			applySeed(msg.data);
+			if (currentSource === 'demo') {
+				sourceChangePending = false;
+				loader.hide();
+			}
 			break;
 		case 'tick':
 			applyTick(msg.data);
@@ -534,9 +550,11 @@ function handleDemoMessage(evt) {
 				feedRunning = msg.running;
 				updateUI();
 			}
+			if (currentSource === 'demo') loader.hide();
 			break;
 		case 'error':
 			console.error('[demo feed]', msg.message);
+			if (currentSource === 'demo') loader.hide();
 			break;
 	}
 }
@@ -558,6 +576,8 @@ function handleLiveMessage(evt, source) {
 			break;
 		case 'seed':
 			applySeed(msg.data);
+			sourceChangePending = false;
+			loader.hide();
 			break;
 		case 'tick':
 			applyTick(msg.data);
@@ -574,9 +594,15 @@ function handleLiveMessage(evt, source) {
 					? `Source: ${sourceLabel} (connected)`
 					: (msg.running ? `Source: ${sourceLabel} (connecting…)` : `Source: ${sourceLabel}`)
 			);
+			if (sourceChangePending && !msg.running) {
+				sourceChangePending = false;
+				loader.hide();
+			}
 			break;
 		case 'error':
 			console.error('[live feed]', msg.message);
+			sourceChangePending = false;
+			loader.hide();
 			break;
 	}
 }
@@ -586,8 +612,10 @@ function handleLiveMessage(evt, source) {
 demoWorker.onmessage = handleDemoMessage;
 demoWorker.onerror = (err) => {
 	console.error('[demo feed worker]', err.message || err);
+	if (currentSource === 'demo') loader.hide();
 };
 
+loader.show('Connecting...');
 demoWorker.postMessage({
 	type: 'config',
 	bucketMs: currentBucketMs(),
@@ -602,6 +630,9 @@ demoWorker.postMessage({ type: 'seed' });
 
 function switchSource(newSource) {
 	if (newSource === currentSource) return;
+
+	loader.show('Connecting...');
+	sourceChangePending = newSource !== 'demo';
 
 	// Pause the current feed if it's running.
 	if (feedRunning) {
@@ -620,13 +651,22 @@ function switchSource(newSource) {
 	currentSource = newSource;
 
 	if (currentSource === 'live') {
-		ensureLiveWorker();
+		ensureLiveWorker().postMessage({ type: 'state' });
 	} else if (currentSource === 'live-kline') {
-		ensureLiveKlineWorker();
+		ensureLiveKlineWorker().postMessage({ type: 'state' });
 	} else {
 		setSymbolPrecision(2, 4);
+		demoWorker.postMessage({
+			type: 'config',
+			bucketMs: currentBucketMs(),
+			tickMs: VISUAL_UPDATE_MS,
+			windowMs: currentWindowMs(),
+			eventTimeField: 'eventTime',
+			indicators: buildIndicators()
+		});
+		demoWorker.postMessage({ type: 'seed' });
 	}
-
+	updateUI();
 	updateUI();
 }
 
@@ -642,6 +682,8 @@ function toggleFeed() {
 }
 
 function startCurrentWorker() {
+	sourceChangePending = false;
+	loader.show('Connecting...');
 	if (currentSource === 'demo') {
 		demoWorker.postMessage({ type: 'start' });
 	} else if (currentSource === 'live' || currentSource === 'live-kline') {
@@ -662,6 +704,11 @@ function stopCurrentWorker() {
 }
 
 function resetData() {
+	if (currentSource === 'demo'
+		|| (currentSource === 'live' && liveWorker)
+		|| (currentSource === 'live-kline' && liveKlineWorker)) {
+		loader.show('Connecting...');
+	}
 	// Clear the chart up front. The worker reseeds (demo) or
 	// reconnects and fetches a fresh seed (live).
 	for (const h of activeHandles()) h.setData([]);
@@ -860,6 +907,7 @@ const timeframeDropdown = new Dropdown({
 		plane.maxData = Math.max(currentMaxData, 7 * tf.windowMs);
 
 		if (currentSource === 'demo') {
+			loader.show('Connecting...');
 			// Demo worker reseeds from scratch with the new
 			// bucketMs. The `config` message alone updates the
 			// indicator set; the explicit `seed` message triggers
@@ -875,6 +923,7 @@ const timeframeDropdown = new Dropdown({
 			});
 			demoWorker.postMessage({ type: 'seed' });
 		} else if (currentSource === 'live' || currentSource === 'live-kline') {
+			if (feedRunning) loader.show('Connecting...');
 			// The trade worker rebuckets its buffer; the Kline
 			// worker reconnects at the new exchange interval.
 			// Both replace the chart data with a fresh seed.
@@ -916,6 +965,9 @@ const symbolDropdown = new Dropdown({
 	value: currentSymbol,
 	onSelect: (value) => {
 		if (typeof value !== 'string' || !value || value === currentSymbol) return;
+		if (currentSource === 'live' || currentSource === 'live-kline') {
+			loader.show('Connecting...');
+		}
 		currentSymbol = value;
 		setSymbolPrecision(2, 4);
 		if (currentSource !== 'live' && currentSource !== 'live-kline') return;
