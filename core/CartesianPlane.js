@@ -1591,7 +1591,7 @@ export class CartesianPlane {
 		if (min === Infinity) return [0, 1];
 
 		const span = max - min;
-		const padding = span > 0 ? span * 0.05 : (Math.abs(min) * 0.05 || 1);
+		const padding = span > 0 ? span * 0.01 : (Math.abs(min) * 0.01 || 1);
 		return [min - padding, max + padding];
 	}
 
@@ -1865,6 +1865,17 @@ export class CartesianPlane {
 		return null;
 	}
 
+	/**
+	 * Returns the data coordinate at the right edge of the plot's fixed
+	 * pixel gap, where the latest data point should remain anchored.
+	 *
+	 * @returns {number}
+	 */
+	getXZoomAnchor() {
+		const gapPx = this.plotWidth * this.domainPadding;
+		return this.xScale.toData(this.plotRight - gapPx);
+	}
+
 	// ──────────────────────────────────────────────────────────
 	// INTERACTION MODE
 	// ──────────────────────────────────────────────────────────
@@ -1906,8 +1917,24 @@ export class CartesianPlane {
 			const center = (anchor !== undefined && anchor !== null && isFinite(anchor))
 				? anchor
 				: (xMin + xMax) / 2;
-			const newMin = center - (center - xMin) / factor;
-			const newMax = center + (xMax - center) / factor;
+			let newMin = center - (center - xMin) / factor;
+			let newMax = center + (xMax - center) / factor;
+			const currentSpan = xMax - xMin;
+			const nextSpan = newMax - newMin;
+
+			if (factor < 1 && nextSpan > currentSpan) {
+				const dataBounds = this._getDataXBounds();
+				const padding = this.domainPadding;
+				if (dataBounds && isFinite(padding) && padding >= 0 && padding < 1) {
+					const dataSpan = dataBounds[1] - dataBounds[0];
+					const maxSpan = dataSpan / (1 - padding);
+					if (dataSpan > 0 && nextSpan > maxSpan) {
+						newMin = dataBounds[0];
+						newMax = dataBounds[1] + padding * maxSpan;
+					}
+				}
+			}
+
 			this.xScale.domain = [newMin, newMax];
 			this._xDomainLocked = true;
 			this.events.emit(Events.SCALE_DOMAIN_CHANGED, {
@@ -1940,6 +1967,20 @@ export class CartesianPlane {
 
 		this._requestUpdate();
 		return this;
+	}
+
+	_getDataXBounds() {
+		let min = Infinity;
+		let max = -Infinity;
+		for (let i = 0, len = this._dataLayers.length; i < len; i++) {
+			const entry = this._layers[this._dataLayers[i]];
+			if (!entry || !entry.instance.isDataLayer) continue;
+			const stats = entry.instance.getStats();
+			if (!stats || !stats.hasData || !isFinite(stats.xMin) || !isFinite(stats.xMax)) continue;
+			if (stats.xMin < min) min = stats.xMin;
+			if (stats.xMax > max) max = stats.xMax;
+		}
+		return min === Infinity ? null : [min, max];
 	}
 
 	/**

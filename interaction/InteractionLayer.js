@@ -370,9 +370,9 @@ export class InteractionLayer extends Layer {
 		const plane = this.plane;
 		const spanFactor = e.deltaY < 0 ? 0.9 : 1 / 0.9;
 		const zoomFactor = 1 / spanFactor;
-		const xMax = plane.xScale.domain[1];
+		const anchorX = plane.getXZoomAnchor();
 
-		plane.zoom(zoomFactor, xMax, 'x');
+		plane.zoom(zoomFactor, anchorX, 'x');
 
 		const groupId = plane.getYGroupAt(pt.y);
 		const group = groupId ? plane._yGroups[groupId] : null;

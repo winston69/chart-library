@@ -108,8 +108,8 @@ test('autoFitVisibleY aggregates visible layer domains and pads each band', () =
 
 	plane.autoFitVisibleY();
 
-	assert.deepEqual(yScale.domain, [-2.7, 12.7]);
-	assert.deepEqual(plane._yGroups.price.domain, [-2.7, 12.7]);
+	assert.deepEqual(yScale.domain, [-2.14, 12.14]);
+	assert.deepEqual(plane._yGroups.price.domain, [-2.14, 12.14]);
 });
 
 test('autoFitVisibleY leaves y-locked bands unchanged', () => {
@@ -152,4 +152,50 @@ test('autoFitVisibleY uses the default domain when no layer data is visible', ()
 	plane.autoFitVisibleY();
 
 	assert.deepEqual(yScale.domain, [0, 1]);
+});
+
+test('X zoom anchor keeps the right gap constant in pixels across zoom levels', () => {
+	const plane = new CartesianPlane({
+		width: 800,
+		xDomain: [0, 100],
+		padding: 0.05
+	});
+	plane.xScale.range = [0, 800];
+	plane._requestUpdate = () => {};
+	const dataRight = 95;
+
+	const assertFixedGap = () => {
+		const anchor = plane.getXZoomAnchor();
+		assert.equal(plane.xScale.toScreen(anchor), plane.plotRight - 40);
+		assert.equal(plane.xScale.toScreen(dataRight), plane.plotRight - 40);
+	};
+
+	assertFixedGap();
+	plane.zoom(2, plane.getXZoomAnchor(), 'x');
+	assertFixedGap();
+});
+
+test('X zoom-out clamps to the largest span that keeps all data visible', () => {
+	const plane = new CartesianPlane({
+		width: 800,
+		xDomain: [0, 100],
+		padding: 0.05
+	});
+	plane.xScale.range = [0, 800];
+	plane._dataLayers = ['price'];
+	plane._layers.price = {
+		instance: {
+			isDataLayer: true,
+			getStats: () => ({ hasData: true, xMin: 0, xMax: 95 })
+		}
+	};
+	plane.autoFitVisibleY = () => plane;
+	plane._requestUpdate = () => {};
+
+	plane.zoom(0.1, plane.getXZoomAnchor(), 'x');
+
+	const [xMin, xMax] = plane.xScale.domain;
+	assert.equal(xMin, 0);
+	assert.equal(xMax, 100);
+	assert.equal(plane.xScale.toScreen(95), plane.plotRight - 40);
 });
