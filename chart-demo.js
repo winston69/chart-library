@@ -14,12 +14,12 @@
 // their layers and expose a uniform dispatch contract:
 //   appendOrUpdate(row, keyFn), setData(rows), remove()
 //
-// The feed worker computes derived fields from raw trades; the
-// main thread only renders.
+// Feed workers compute derived fields; the main thread only
+// renders. Live sources use either raw trades or exchange klines.
 //
 // Source / feed model:
-//   - `currentSource` ('demo' | 'live') is set by the source
-//     dropdown. It selects which worker is active.
+//   - `currentSource` ('demo' | 'live' | 'live-kline') is set by
+//     the source dropdown. It selects which worker is active.
 //   - `feedRunning` mirrors the worker's reported state. It is
 //     updated from the worker's `state` messages, not assumed.
 //   - The feed button starts / pauses the active worker.
@@ -30,7 +30,7 @@
 //   - The demo worker is created on page load and seeds the
 //     chart. Its timer does not start until the feed button is
 //     pressed.
-//   - The live worker is created lazily on first use.
+//   - Both live workers are created lazily on first use.
 // ──────────────────────────────────────────────────────────────
 
 // Core
@@ -113,7 +113,8 @@ const SYMBOL_OPTIONS = [
 
 const SOURCE_OPTIONS = [
 	{ value: 'demo', label: 'Demo' },
-	{ value: 'live', label: 'Live' }
+	{ value: 'live', label: 'Live' },
+	{ value: 'live-kline', label: 'Live (Klines)' }
 ];
 
 // ─── MUTABLE CONTROL STATE ───
@@ -121,7 +122,7 @@ const SOURCE_OPTIONS = [
 let currentTimeframe = TIMEFRAMES[2];      // 15m default
 let currentMaxData = 7 * 86400000;         // matches plane.maxData
 let currentSymbol = 'BTCPHP';              // default live symbol
-let currentSource = 'demo';                // 'demo' | 'live'
+let currentSource = 'demo';                // 'demo' | 'live' | 'live-kline'
 let feedRunning = false;                   // mirrors the active worker's state
 
 function currentBucketMs() { return currentTimeframe.value; }
@@ -476,29 +477,58 @@ function applyTick(row) {
 
 const demoWorker = new Worker('./chart-demo-feed.js', { type: 'module' });
 let liveWorker = null;
+let liveKlineWorker = null;
 
-function ensureLiveWorker() {
-	if (liveWorker) return liveWorker;
-
-	liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
-	liveWorker.onmessage = handleLiveMessage;
-	liveWorker.onerror = (err) => {
-		console.error('[live feed worker]', err.message || err);
-	};
-
-	liveWorker.postMessage({
+function liveWorkerConfig(source) {
+	const config = {
 		type: 'config',
 		symbol: currentSymbol,
-		stream: 'trade',
 		bucketMs: currentBucketMs(),
 		tickMs: VISUAL_UPDATE_MS,
 		windowMs: currentWindowMs(),
 		maxData: plane.maxData,
 		eventTimeField: 'eventTime',
 		indicators: buildIndicators()
-	});
+	};
+	if (source === 'live-kline') {
+		config.interval = currentTimeframe.label;
+	} else {
+		config.stream = 'trade';
+	}
+	return config;
+}
+
+function ensureLiveWorker() {
+	if (liveWorker) return liveWorker;
+
+	liveWorker = new Worker('./chart-demo-live.js', { type: 'module' });
+	liveWorker.onmessage = (evt) => handleLiveMessage(evt, 'live');
+	liveWorker.onerror = (err) => {
+		console.error('[live feed worker]', err.message || err);
+	};
+
+	liveWorker.postMessage(liveWorkerConfig('live'));
 
 	return liveWorker;
+}
+
+function ensureLiveKlineWorker() {
+	if (liveKlineWorker) return liveKlineWorker;
+
+	liveKlineWorker = new Worker('./chart-demo-live-kline.js', { type: 'module' });
+	liveKlineWorker.onmessage = (evt) => handleLiveMessage(evt, 'live-kline');
+	liveKlineWorker.onerror = (err) => {
+		console.error('[live Kline worker]', err.message || err);
+	};
+	liveKlineWorker.postMessage(liveWorkerConfig('live-kline'));
+
+	return liveKlineWorker;
+}
+
+function ensureLiveWorkerForSource(source) {
+	return source === 'live-kline'
+		? ensureLiveKlineWorker()
+		: ensureLiveWorker();
 }
 
 // ─── WORKER MESSAGE HANDLERS ───
@@ -526,7 +556,8 @@ function handleDemoMessage(evt) {
 	}
 }
 
-function handleLiveMessage(evt) {
+function handleLiveMessage(evt, source) {
+	if (source !== currentSource) return;
 	const msg = evt.data;
 	if (!msg || typeof msg.type !== 'string') return;
 
@@ -543,10 +574,11 @@ function handleLiveMessage(evt) {
 				updateUI();
 			}
 			// Tooltip reflects the live worker's connection state.
+			const sourceLabel = source === 'live-kline' ? 'Live (Klines)' : 'Live';
 			sourceDropdown.setTooltip(
 				msg.connected
-					? 'Source: Live (connected)'
-					: (msg.running ? 'Source: Live (connecting…)' : 'Source: Live')
+					? `Source: ${sourceLabel} (connected)`
+					: (msg.running ? `Source: ${sourceLabel} (connecting…)` : `Source: ${sourceLabel}`)
 			);
 			break;
 		case 'error':
@@ -583,17 +615,20 @@ function switchSource(newSource) {
 		feedRunning = false;
 	}
 
-	// If leaving live, shut down its socket and buffer. The
-	// live worker's `disconnect` message stops emission,
-	// closes the WebSocket, and clears the trade buffer.
+	// Disconnect the live source being left so its socket and
+	// worker-side state do not continue in the background.
 	if (currentSource === 'live' && liveWorker) {
 		liveWorker.postMessage({ type: 'disconnect' });
+	} else if (currentSource === 'live-kline' && liveKlineWorker) {
+		liveKlineWorker.postMessage({ type: 'disconnect' });
 	}
 
 	currentSource = newSource;
 
 	if (currentSource === 'live') {
 		ensureLiveWorker();
+	} else if (currentSource === 'live-kline') {
+		ensureLiveKlineWorker();
 	}
 
 	updateUI();
@@ -613,19 +648,9 @@ function toggleFeed() {
 function startCurrentWorker() {
 	if (currentSource === 'demo') {
 		demoWorker.postMessage({ type: 'start' });
-	} else if (currentSource === 'live') {
-		const w = ensureLiveWorker();
-		w.postMessage({
-			type: 'config',
-			symbol: currentSymbol,
-			stream: 'trade',
-			bucketMs: currentBucketMs(),
-			tickMs: VISUAL_UPDATE_MS,
-			windowMs: currentWindowMs(),
-			maxData: plane.maxData,
-			eventTimeField: 'eventTime',
-			indicators: buildIndicators()
-		});
+	} else if (currentSource === 'live' || currentSource === 'live-kline') {
+		const w = ensureLiveWorkerForSource(currentSource);
+		w.postMessage(liveWorkerConfig(currentSource));
 		w.postMessage({ type: 'start' });
 	}
 }
@@ -635,18 +660,22 @@ function stopCurrentWorker() {
 		demoWorker.postMessage({ type: 'stop' });
 	} else if (currentSource === 'live' && liveWorker) {
 		liveWorker.postMessage({ type: 'stop' });
+	} else if (currentSource === 'live-kline' && liveKlineWorker) {
+		liveKlineWorker.postMessage({ type: 'stop' });
 	}
 }
 
 function resetData() {
 	// Clear the chart up front. The worker reseeds (demo) or
-	// reconnects with an empty seed (live).
+	// reconnects and fetches a fresh seed (live).
 	for (const h of handles) h.setData([]);
 
 	if (currentSource === 'demo') {
 		demoWorker.postMessage({ type: 'reset' });
 	} else if (currentSource === 'live' && liveWorker) {
 		liveWorker.postMessage({ type: 'reset' });
+	} else if (currentSource === 'live-kline' && liveKlineWorker) {
+		liveKlineWorker.postMessage({ type: 'reset' });
 	}
 
 	updateUI();
@@ -871,25 +900,17 @@ const timeframeDropdown = new Dropdown({
 				indicators: buildIndicators()
 			});
 			demoWorker.postMessage({ type: 'seed' });
-		} else if (currentSource === 'live') {
-			// Live worker rebuckets from its trade buffer and
-			// posts a fresh seed internally. No stop, no clear.
-			// The chart smoothly swaps from old timeframe to new.
-			ensureLiveWorker().postMessage({
-				type: 'config',
-				symbol: currentSymbol,
-				stream: 'trade',
-				bucketMs: currentBucketMs(),
-				tickMs: VISUAL_UPDATE_MS,
-				windowMs: currentWindowMs(),
-				maxData: plane.maxData,
-				eventTimeField: 'eventTime',
-				indicators: buildIndicators()
-			});
+		} else if (currentSource === 'live' || currentSource === 'live-kline') {
+			// The trade worker rebuckets its buffer; the Kline
+			// worker reconnects at the new exchange interval.
+			// Both replace the chart data with a fresh seed.
+			ensureLiveWorkerForSource(currentSource).postMessage(
+				liveWorkerConfig(currentSource)
+			);
 		}
 
-		// Do NOT clear the chart or touch feedRunning. The worker
-		// handles the rebucket + reseed internally.
+		// Do NOT clear the chart or touch feedRunning. The active
+		// worker replaces its data with a fresh seed.
 		updateUI();
 	}
 });
@@ -921,21 +942,13 @@ const symbolDropdown = new Dropdown({
 	value: currentSymbol,
 	onSelect: (value) => {
 		currentSymbol = value;
-		if (currentSource === 'live' && liveWorker) {
-			// Live worker detects the symbol change, disconnects,
-			// clears its trade buffer, reconnects, and posts an
-			// empty seed. The chart clears on applySeed.
-			liveWorker.postMessage({
-				type: 'config',
-				symbol: value,
-				stream: 'trade',
-				bucketMs: currentBucketMs(),
-				tickMs: VISUAL_UPDATE_MS,
-				windowMs: currentWindowMs(),
-				maxData: plane.maxData,
-				eventTimeField: 'eventTime',
-				indicators: buildIndicators()
-			});
+		if ((currentSource === 'live' && liveWorker)
+			|| (currentSource === 'live-kline' && liveKlineWorker)) {
+			// The active live worker reconnects for this symbol
+			// and replaces the chart with a new seed.
+			ensureLiveWorkerForSource(currentSource).postMessage(
+				liveWorkerConfig(currentSource)
+			);
 		}
 	}
 });

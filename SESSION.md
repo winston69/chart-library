@@ -28,8 +28,9 @@ This file explains what the code *means* and where it's going.
   in the worker.
 - The worker computes indicators; the main thread renders.
   No DOM imports enter the worker's import graph.
-- The live worker buffers raw trades and rebuckets on demand.
-  Timeframe changes do not clear the chart; they swap seeds.
+- The trade-based live worker buffers raw trades and rebuckets on
+  demand; the Kline-based worker consumes exchange candles
+  directly. Timeframe changes reseed at the selected interval.
 
 ## Layer inventory
 
@@ -107,9 +108,10 @@ Indicator computers (worker-side, pure math):
     mirrors the active worker's emission state. The source
     dropdown selects; the feed button starts/pauses.
 13. Live data fetching is split: a local Node proxy (`server.js`)
-    fetches the REST seed and serves it with CORS headers; the
-    worker connects to the WebSocket for live updates. Do not
-    fetch the exchange REST API directly from the browser.
+    fetches REST seeds and serves them with CORS headers. The
+    trade worker subscribes to trades; the Kline worker fetches
+    and subscribes to exchange candles. Do not fetch the exchange
+    REST API directly from the browser.
 
 ## Recent cleanups
 
@@ -152,6 +154,11 @@ Live feed & local proxy
   to `node server.js`.
 - Live worker fetches 1000 historical trades via the local
   proxy on `start()`, using `symbol` from the current config.
+- Added `chart-demo-live-kline.js` and a `/api/klines` proxy for
+  the exchange's official Kline history and WebSocket stream.
+  The `Live (Klines)` source maps exchange candles directly to
+  chart rows and computes the same indicators, allowing a
+  side-by-side comparison with locally bucketed trades.
 - Removed `SortedQueue.js`. The live worker now processes the
   REST seed synchronously inside `fetchHistoricalSeed()` using
   an `isSeeding` flag to suppress outbound ticks, then emits
@@ -313,18 +320,18 @@ Row shape:
 - `lastPrice, weightedAvgPrice, prevClosePrice, openPrice,
    highPrice, lowPrice`
 - `openTime, closeTime, eventTime`
-- `volume`   — Σ(quantity) per bucket
-- `notional` — Σ(price × quantity) per bucket
+- `volume`   — base-asset volume per bucket
+- `notional` — quote-asset volume per bucket (Σ(price × quantity))
 - `bbMean, bbStd, bbUpper, bbLower`  (20-period Bollinger)
 - `rsi`                              (14-period Wilder)
 - `macd, macdSignal, macdHistogram`  (12 / 26 / 9 EMA)
 - `sma`                              (4-bucket SMA of close)
 - `vwma`                             (4-bucket VWMA, typical price)
 
-`eventTime` is the last-trade time within the bucket; `openTime`
-is the exact bucket boundary. Rows are keyed on `openTime`. The
-`eventTime` field is carried for staleness/debug but is not used
-as the x-accessor.
+`eventTime` is the last-trade time for trade rows and the exchange
+event time for Kline rows; `openTime` is the exact bucket boundary.
+Rows are keyed on `openTime`. The `eventTime` field is carried for
+staleness/debug but is not used as the x-accessor.
 
 ## Indicator factories (classes)
 
