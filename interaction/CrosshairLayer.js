@@ -597,16 +597,7 @@ export class CrosshairLayer extends AnnotationLayer {
 	// ─── Band lookup ───
 	_findGroupAtY(y) {
 		const plane = this.plane;
-		if (!plane || !plane._yGroupOrder) return null;
-
-		for (let i = 0, len = plane._yGroupOrder.length; i < len; i++) {
-			const groupId = plane._yGroupOrder[i];
-			const group = plane._yGroups[groupId];
-			if (!group) continue;
-			if (group._yTop === undefined || group._yBottom === undefined) continue;
-			if (y >= group._yTop && y <= group._yBottom) return groupId;
-		}
-		return null;
+		return plane ? plane.getYGroupAt(y) : null;
 	}
 
 	_toDataY(groupId, pixelY) {

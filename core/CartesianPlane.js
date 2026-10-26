@@ -1768,6 +1768,22 @@ export class CartesianPlane {
 		};
 	}
 
+	/**
+	 * Returns the y-group whose band contains the given pixel coordinate.
+	 *
+	 * @param {number} pixelY
+	 * @returns {string|null}
+	 */
+	getYGroupAt(pixelY) {
+		for (let i = 0, len = this._yGroupOrder.length; i < len; i++) {
+			const groupId = this._yGroupOrder[i];
+			const group = this._yGroups[groupId];
+			if (!group || group._yTop === undefined || group._yBottom === undefined) continue;
+			if (pixelY >= group._yTop && pixelY <= group._yBottom) return groupId;
+		}
+		return null;
+	}
+
 	// ──────────────────────────────────────────────────────────
 	// INTERACTION MODE
 	// ──────────────────────────────────────────────────────────
