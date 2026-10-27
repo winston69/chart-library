@@ -1,10 +1,11 @@
 .trades-card {
 	display: block;
-	height: 180px;
-	max-height: 180px;
-	overflow-y: auto;
+	height: 100%;
+	max-height: var(--cs-row-height, 48px);
+	min-width: 0;
+	overflow: hidden;
 	padding: 0;
-	font-size: 9px;
+	font-size: 8px;
 }
 
 .trades-card[hidden] {
@@ -13,10 +14,44 @@
 
 .trades-card table {
 	width: 100%;
+	table-layout: fixed;
 	border-collapse: separate;
 	border-spacing: 0;
 	font-variant-numeric: tabular-nums;
 	text-align: right;
+}
+
+.trades-card th:nth-child(1),
+.trades-card td:nth-child(1) {
+	width: 30%;
+}
+
+.trades-card th:nth-child(2),
+.trades-card td:nth-child(2) {
+	width: 28%;
+}
+
+.trades-card th:nth-child(3),
+.trades-card td:nth-child(3) {
+	width: 28%;
+}
+
+.trades-card th:nth-child(4),
+.trades-card td:nth-child(4) {
+	width: 14%;
+}
+
+.trades-card tbody {
+	display: block;
+	max-height: calc(var(--cs-row-height, 48px) - 26px);
+	overflow-y: auto;
+}
+
+.trades-card thead tr,
+.trades-card tbody tr {
+	display: table;
+	width: 100%;
+	table-layout: fixed;
 }
 
 .trades-card th {
@@ -30,12 +65,16 @@
 
 .trades-card th,
 .trades-card td {
-	padding: 3px 4px;
+	padding: 2px 0;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .trades-card th:first-child,
-.trades-card td:first-child {
+.trades-card td:first-child,
+.trades-card th:last-child,
+.trades-card td:last-child {
 	text-align: left;
 }
 
