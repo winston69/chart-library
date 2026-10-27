@@ -110,7 +110,7 @@ const SYMBOL_OPTIONS = [
 
 const SOURCE_OPTIONS = [
 	{ value: 'demo', label: 'Demo' },
-	{ value: 'live', label: 'Live' },
+	{ value: 'live', label: 'Live (Trades)' },
 	{ value: 'live-kline', label: 'Live (Klines)' }
 ];
 
@@ -595,7 +595,7 @@ function handleLiveMessage(evt, source) {
 		case 'symbols':
 			if (!Array.isArray(msg.data)) break;
 			console.log('[live feed] received symbols:', msg.data);
-			symbolDropdown.setItems(msg.data);
+			symbolDropdown.setItems([...msg.data].sort((a, b) => a.localeCompare(b)));
 			symbolDropdown.setValue(currentSymbol, false);
 			break;
 		case 'seed':
@@ -612,7 +612,7 @@ function handleLiveMessage(evt, source) {
 				updateUI();
 			}
 			// Tooltip reflects the live worker's connection state.
-			const sourceLabel = source === 'live-kline' ? 'Live (Klines)' : 'Live';
+			const sourceLabel = source === 'live-kline' ? 'Live (Klines)' : 'Live (Trades)';
 			sourceDropdown.setTooltip(
 				msg.connected
 					? `Source: ${sourceLabel} (connected)`

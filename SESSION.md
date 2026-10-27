@@ -199,8 +199,8 @@ Toolbar and controls
 
 Feed model
 - Split source selection from feed emission. `sourceButton` →
-  `sourceDropdown` (Demo / Live options). Feed control is a
-  separate button.
+  `sourceDropdown` (Demo / Live (Trades) / Live (Klines)
+  options). Feed control is a separate button.
 - Single `feedRunning` + `currentSource`; the source dropdown
   stops the running worker before switching.
 - Demo worker is persistent (seeded on page load).
