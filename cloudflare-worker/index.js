@@ -30,7 +30,8 @@ export default {
 		const requestUrl = new URL(request.url);
 		const upstreamPath = ROUTES[requestUrl.pathname];
 		const origin = request.headers.get('Origin');
-		const isAllowedOrigin = origin === env.ALLOWED_ORIGIN;
+		const isAllowedOrigin = origin === env.ALLOWED_ORIGIN
+			|| (!origin && requestUrl.origin === env.ALLOWED_ORIGIN);
 
 		if (!upstreamPath) {
 			return jsonResponse(request, env, { error: 'Not found' }, 404);

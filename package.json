@@ -5,7 +5,7 @@
 	"description": "Primitive-layer chart library. Compose indicators from single-purpose layers.",
 	"license": "MIT",
 	"engines": {
-		"node": ">=18"
+		"node": ">=22"
 	},
 	"main": "index.js",
 	"files": [
@@ -20,8 +20,11 @@
 		"index.css"
 	],
 	"scripts": {
-		"dev": "node server.js",
-		"demo": "node server.js",
+		"dev": "wrangler dev --config wrangler.dev.toml",
+		"demo": "npm run dev",
 		"test": "node --test"
+	},
+	"devDependencies": {
+		"wrangler": "4.153.0"
 	}
 }

@@ -1,0 +1,17 @@
+.git/
+.wrangler/
+node_modules/
+.github/
+_docs/
+tests/
+scripts/
+cloudflare-worker/
+server.js
+README.md
+ROADMAP.md
+SESSION.md
+HANDOFF.md
+CONTRIBUTING.md
+package.json
+package-lock.json
+wrangler.dev.toml

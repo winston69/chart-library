@@ -81,7 +81,7 @@ const DEPLOYED_WORKER_URL = 'https://chart-library-api.prd-cmn.workers.dev';
 const IS_LOCAL_DEVELOPMENT = ['localhost', '127.0.0.1', '::1']
 	.includes(window.location.hostname);
 const API_BASE_URL = IS_LOCAL_DEVELOPMENT
-	? 'http://localhost:8000'
+	? 'http://localhost:8787'
 	: DEPLOYED_WORKER_URL;
 
 // ─── CONTROL OPTIONS ───

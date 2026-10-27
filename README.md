@@ -20,7 +20,9 @@ Early. API is not stable. No npm release yet.
     git clone https://github.com/winston69/chart-library.git
     cd chart-library
     npm run dev
-    # open http://localhost:8000
+    # open http://localhost:8787
+
+Local development requires Node.js 22 or newer for Wrangler.
 
 ## Concepts
 
@@ -81,6 +83,9 @@ The demo is `index.html` plus `chart-demo-feed.js`. It runs a web
 worker that simulates a market data feed. No build step.
 
     npm run dev
+
+Local development uses Wrangler to serve the demo and API Worker at
+`http://localhost:8787`. `server.js` remains available as a fallback.
 
 See [SESSION.md](./SESSION.md) for architectural decisions and open work.
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the indicator checklist.

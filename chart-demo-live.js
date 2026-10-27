@@ -265,6 +265,8 @@ function rebucketFromBuffer() {
 	currentBucket = bucket;
 	// The snapshot for the forming bucket is whatever
 	// openBucket last set.
+	rows.push(bucket);
+	console.log(`Rebucketed trade buffer into ${rows.length} candle rows.`);
 	return rows;
 }
 

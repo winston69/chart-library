@@ -103,7 +103,7 @@ responsibilities have clear boundaries rather than merely being relocated.
 
 Deploy the demo as a public site while keeping exchange REST requests behind a
 narrow Cloudflare Worker proxy. The static site and API proxy are separate
-deployments; `server.js` remains the zero-dependency local development server.
+deployments; `server.js` remains the zero-dependency local development fallback.
 
 1. Implement Worker routes for `/api/trades`, `/api/klines`, and
    `/api/symbol-info`. Map each route to a fixed Coins.ph upstream endpoint,
@@ -114,12 +114,12 @@ deployments; `server.js` remains the zero-dependency local development server.
    and `Vary: Origin`. Keep allowed origins configurable so the Pages origin
    can be set at deployment time; do not enable credentials unless needed.
 3. Configure the demo to pass one API base URL to both live-feed workers. Use
-   the local server origin for localhost development and the deployed Worker
+   the local Wrangler origin for localhost development and the deployed Worker
    URL for the public site. Keep the synthetic demo feed independent of the API.
-4. Keep `npm run dev` and `npm run demo` backed by `server.js`, preserving
-   local static-file serving and proxy behavior. Live exchange feeds require
-   network access; offline development remains available through the demo
-   source.
+4. Run `npm run dev` and `npm run demo` with Wrangler so local development
+   exercises the same Worker proxy used by the deployed demo. Keep
+   `server.js` as a fallback. Live exchange feeds require network access;
+   offline development remains available through the demo source.
 5. Document Worker configuration and deployment, then verify all three API
    routes, CORS preflight, both live-feed seed paths, deployed-origin behavior,
    and local development before publishing.

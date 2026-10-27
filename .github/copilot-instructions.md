@@ -2,9 +2,9 @@
 
 ## Build, test, and lint
 
-- `npm run dev` serves the repository at `http://localhost:8000`; open `index.html` for the demo.
-- `npm run demo` is an alias for the same static server.
-- There is no build, test, or lint script, and no test suite is currently configured. No single-test command is available.
+- `npm run dev` runs `wrangler dev` at `http://localhost:8787`; open the root URL for the demo.
+- `npm run demo` is an alias for `npm run dev`.
+- `npm test` runs the Node.js test suite. There is no build or lint script.
 
 ## Architecture
 
