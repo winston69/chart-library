@@ -241,6 +241,8 @@ function rebucketFromBuffer() {
 
 	if (tradeBuffer.length === 0) return [];
 
+	tradeBuffer.sort((a, b) => a.time - b.time);
+
 	const rows = [];
 	let bucketOpenTime = floorToBucket(tradeBuffer[0].time);
 	let bucket = openBucket(bucketOpenTime, tradeBuffer[0].price, tradeBuffer[0].time);
@@ -336,6 +338,8 @@ function connect() {
 		const tradeTime = Number(payload.T);
 
 		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)) return;
+		const lastTrade = tradeBuffer[tradeBuffer.length - 1];
+		if (lastTrade && lastTrade.time === tradeTime && lastTrade.price === price) return;
 
 		// Pass directly to the processor
 		processTrade({ price, qty: quantity, time: tradeTime });
