@@ -24,3 +24,34 @@ test('default numeric tick target increases with band height', () => {
 	assert.equal(tallerBandTickCount, 4);
 	assert.ok(tallerBandTickCount > shorterBandTickCount);
 });
+
+test('decimal tick mode uses sub-decade steps for a tall price band', () => {
+	const height = 600;
+	const domain = [5_000_000, 5_100_000];
+	const plane = {
+		_yGroups: {
+			price: { _yTop: 0, _yBottom: height }
+		}
+	};
+	const axis = new Axis({
+		plane,
+		bandGroupId: 'price',
+		orientation: 'right',
+		tickStepMode: 'decimal',
+		scale: {
+			domain,
+			range: [height, 0],
+			toScreen: value => height - (value - domain[0]) * height /
+				(domain[1] - domain[0])
+		},
+		fontSize: 12
+	});
+
+	const tiers = axis._computeTickTiers();
+	const rendered = axis._getTickTiers();
+	const majorSpacing = tiers.majorStep / (domain[1] - domain[0]) * height;
+
+	assert.ok(tiers.majorStep < domain[1] - domain[0]);
+	assert.ok(rendered.majorTicks.length > 2);
+	assert.ok(majorSpacing >= 75);
+});

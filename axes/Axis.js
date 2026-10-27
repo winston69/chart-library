@@ -326,6 +326,39 @@ export class Axis extends Layer {
 		return mantissa * Math.pow(10, exponent);
 	}
 
+	_snapToDecimalStep(step) {
+		const exponent = Math.floor(Math.log10(step));
+		const scale = Math.pow(10, exponent);
+		const mantissas = [1, 2, 2.5, 5, 10];
+		let best = mantissas[0] * scale;
+		let bestDistance = Math.abs(step - best);
+
+		for (let i = 1; i < mantissas.length; i++) {
+			const candidate = mantissas[i] * scale;
+			const distance = Math.abs(step - candidate);
+			if (distance < bestDistance) {
+				best = candidate;
+				bestDistance = distance;
+			}
+		}
+
+		return best;
+	}
+
+	_nextDecimalStep(step) {
+		const exponent = Math.floor(Math.log10(step));
+		const scale = Math.pow(10, exponent);
+		const mantissas = [1, 2, 2.5, 5, 10];
+		let next = Infinity;
+
+		for (let i = 0; i < mantissas.length; i++) {
+			const candidate = mantissas[i] * scale;
+			if (candidate > step && candidate < next) next = candidate;
+		}
+
+		return next;
+	}
+
 	_snapToImperialStep(step) {
 		// Reserved. Falls back to metric until a ladder is defined.
 		return this._snapToMetricNiceStep(step);
@@ -484,11 +517,14 @@ export class Axis extends Layer {
 			);
 		}
 
-		const targetMicro = domainLength / (tickCount * 10);
-		const exp = Math.ceil(Math.log10(targetMicro));
+		const rawMajorStep = domainLength / tickCount;
+		let majorStep = this._snapToDecimalStep(rawMajorStep);
+		if (this._pixelSpacingForStep(majorStep, domainLength) < DEFAULT_MIN_TICK_SPACING) {
+			majorStep = this._nextDecimalStep(majorStep);
+		}
 
-		if (!isFinite(exp)) {
-			const majorStep = this._snapToNiceStep(domainLength / tickCount);
+		if (!isFinite(majorStep) || majorStep <= 0) {
+			majorStep = this._snapToNiceStep(rawMajorStep);
 			return {
 				majorStep,
 				minorStep: null,
@@ -498,9 +534,8 @@ export class Axis extends Layer {
 			};
 		}
 
-		const microStep = Math.pow(10, exp);
-		const minorStep = microStep * 5;
-		const majorStep = microStep * 10;
+		const minorStep = majorStep / 2;
+		const microStep = majorStep / 10;
 
 		const microPx = this._pixelSpacingForStep(microStep, domainLength);
 		const minorPx = this._pixelSpacingForStep(minorStep, domainLength);
