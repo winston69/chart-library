@@ -94,6 +94,7 @@ export class Axis extends Layer {
 		this.labelStyle = options.labelStyle || 'watermark';
 
 		this.label = options.label || '';
+		this.axisLabel = options.axisLabel || this.label || options.name || '';
 		this.labelOffset = options.labelOffset || 0;
 		this.showLabel = options.showLabel !== undefined ? options.showLabel : true;
 		this.showGrid = options.showGrid !== undefined ? options.showGrid : false;

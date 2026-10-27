@@ -211,7 +211,7 @@ export class YAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
-		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals);
+		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength);
 
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
@@ -397,7 +397,7 @@ export class YAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
-		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals);
+		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength);
 
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
@@ -412,13 +412,15 @@ export class YAxis extends Axis {
 		}
 	}
 
-	_renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals) {
+	_renderWatermark(yMin, yMax, position, tickDirection, majorTickLength) {
 		const watermark = this._elements.watermark;
 		if (!watermark || !this._isWatermarkStyle()) return;
 
-		const domain = this.scale.domain;
-		const value = Math.max(domain[0], domain[1]);
-		const text = this._formatTick(value, decimals);
+		const text = this.axisLabel;
+		if (!text) {
+			watermark.setAttribute('visibility', 'hidden');
+			return;
+		}
 		const x = this._getWatermarkTickLabelX(position, tickDirection, majorTickLength);
 		const y = (yMin + yMax) / 2;
 		const height = Math.abs(yMax - yMin);

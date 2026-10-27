@@ -854,6 +854,7 @@ export class CartesianPlane {
 				id: axisOptions.id || `${this.id}-${groupId}-y-axis`,
 				name: axisOptions.name || axisOptions.label || options.name || scaleType,
 				label: axisOptions.label || options.name || scaleType,
+				axisLabel: axisOptions.axisLabel || axisOptions.label || options.name || groupId,
 				plane: this,
 				scale: group.yScale,
 				bandGroupId: groupId

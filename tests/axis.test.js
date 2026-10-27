@@ -36,6 +36,28 @@ test('watermark Y-axis requests a narrower margin than standard labels', () => {
 	assert.ok(watermark < standard);
 });
 
+test('watermark renders the axis name instead of a tick value', () => {
+	const watermark = {
+		attributes: {},
+		textContent: '',
+		setAttribute(name, value) {
+			this.attributes[name] = value;
+		}
+	};
+	const axis = new YAxis({
+		fontSize: 12,
+		axisLabel: 'Price',
+		scale: { domain: [0, 5_100_000] }
+	});
+	axis._elements.watermark = watermark;
+
+	axis._renderWatermark(0, 600, 100, 1, 7);
+
+	assert.equal(watermark.textContent, 'Price');
+	assert.equal(watermark.attributes.visibility, 'visible');
+	assert.match(watermark.attributes.transform, /scale\(/);
+});
+
 test('default numeric tick target increases with band height', () => {
 	const plane = {
 		_yGroups: {
