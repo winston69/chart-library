@@ -99,19 +99,49 @@ steps rather than moving DOM and state wholesale.
 existing plane behavior is preserved, and the plane's remaining
 responsibilities have clear boundaries rather than merely being relocated.
 
-## Phase 4: Generalization (Optional)
+## Phase 4: Deployment (Cloudflare Worker)
+
+Deploy the demo as a public site while keeping exchange REST requests behind a
+narrow Cloudflare Worker proxy. The static site and API proxy are separate
+deployments; `server.js` remains the zero-dependency local development server.
+
+1. Implement Worker routes for `/api/trades`, `/api/klines`, and
+   `/api/symbol-info`. Map each route to a fixed Coins.ph upstream endpoint,
+   forward the query string, support `GET` and CORS preflight `OPTIONS`, and
+   return upstream statuses and explicit proxy errors. Do not accept arbitrary
+   upstream URLs.
+2. Configure CORS for the deployed demo origin, including `OPTIONS` responses
+   and `Vary: Origin`. Keep allowed origins configurable so the Pages origin
+   can be set at deployment time; do not enable credentials unless needed.
+3. Configure the demo to pass one API base URL to both live-feed workers. Use
+   the local server origin for localhost development and the deployed Worker
+   URL for the public site. Keep the synthetic demo feed independent of the API.
+4. Keep `npm run dev` and `npm run demo` backed by `server.js`, preserving
+   local static-file serving and proxy behavior. Live exchange feeds require
+   network access; offline development remains available through the demo
+   source.
+5. Document Worker configuration and deployment, then verify all three API
+   routes, CORS preflight, both live-feed seed paths, deployed-origin behavior,
+   and local development before publishing.
+
+**Exit criteria:** the public demo loads from its deployed static host, both
+live sources can fetch seed data through the Worker, Worker CORS permits the
+deployed origin, and `npm run dev` continues to work locally without requiring
+Cloudflare credentials.
+
+## Future Considerations: Generalization
 
 Do not pivot to a generic chart library by default. The current design's
 multi-band model, bucket updates, and indicator worker pipeline are valuable
 for trading charts and are already the project's strongest domain-specific
 capabilities.
 
-After Phases 1–3, use actual consumer needs to decide whether to generalize:
-identify repeated use cases outside market data, determine which abstractions
-remain useful without trading assumptions, and compare the maintenance cost
-against the value of serving those users. If those needs are not evidenced,
-double down on the trading domain, document that scope, and generalize only
-stable primitives that have a concrete second use case.
+Use actual consumer needs to decide whether to generalize: identify repeated
+use cases outside market data, determine which abstractions remain useful
+without trading assumptions, and compare the maintenance cost against the
+value of serving those users. If those needs are not evidenced, double down on
+the trading domain, document that scope, and generalize only stable primitives
+that have a concrete second use case.
 
 **Decision gate:** make the pivot decision from demonstrated user requirements
 and API pressure, not from a desire for generic abstractions alone.

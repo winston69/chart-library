@@ -77,6 +77,12 @@ let SYMBOL_DECIMALS = 2;
 let QTY_DECIMALS = 4;
 
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
+const DEPLOYED_WORKER_URL = 'https://chart-library-api.<your-account>.workers.dev';
+const IS_LOCAL_DEVELOPMENT = ['localhost', '127.0.0.1', '::1']
+	.includes(window.location.hostname);
+const API_BASE_URL = IS_LOCAL_DEVELOPMENT
+	? window.location.origin
+	: DEPLOYED_WORKER_URL;
 
 // ─── CONTROL OPTIONS ───
 
@@ -457,6 +463,7 @@ let liveKlineWorker = null;
 function liveWorkerConfig(source) {
 	const config = {
 		type: 'config',
+		apiBase: API_BASE_URL,
 		symbol: currentSymbol,
 		bucketMs: currentBucketMs(),
 		tickMs: VISUAL_UPDATE_MS,

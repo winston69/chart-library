@@ -87,6 +87,7 @@ const DEFAULT_TICK_MS = 1000;                  // 1 Hz
 const DEFAULT_WINDOW_MS = 86400000;            // 24 hours
 const DEFAULT_MAX_DATA = 7 * 86400000;         // 7 days buffer
 const DEFAULT_EVENT_TIME_FIELD = 'eventTime';
+let apiBase = self.location.origin;
 
 const DEFAULT_INDICATORS = [
 	'macd',
@@ -384,6 +385,9 @@ function handleConfig(msg) {
 	let connectionChanged = false;
 	let timeframeChanged = false;
 
+	if (typeof msg.apiBase === 'string' && msg.apiBase) {
+		apiBase = msg.apiBase.replace(/\/+$/, '');
+	}
 	if (typeof msg.symbol === 'string' && msg.symbol && msg.symbol !== symbol) {
 		symbol = msg.symbol;
 		connectionChanged = true;
@@ -579,7 +583,7 @@ async function fetchHistoricalSeed() {
 		let priceDecimals = 2;
 		let qtyDecimals = 4;
 		try {
-			const metadataResponse = await fetch('http://localhost:8000/api/symbol-info');
+			const metadataResponse = await fetch(`${apiBase}/api/symbol-info`);
 			if (!metadataResponse.ok) {
 				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
 			}
@@ -619,7 +623,7 @@ async function fetchHistoricalSeed() {
 		if (generation !== seedGeneration) return;
 		self.postMessage({ type: 'metadata', priceDecimals, qtyDecimals });
 
-		const url = `http://localhost:8000/api/trades?symbol=${encodeURIComponent(requestedSymbol)}&limit=1000`;
+		const url = `${apiBase}/api/trades?symbol=${encodeURIComponent(requestedSymbol)}&limit=1000`;
 		const response = await fetch(url);
 
 		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

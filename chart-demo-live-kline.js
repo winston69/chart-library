@@ -41,6 +41,7 @@ const DEFAULT_INDICATORS = [
 
 let symbol = DEFAULT_SYMBOL;
 let interval = DEFAULT_INTERVAL;
+let apiBase = self.location.origin;
 let bucketMs = DEFAULT_BUCKET_MS;
 let tickMs = DEFAULT_TICK_MS;
 let windowMs = DEFAULT_WINDOW_MS;
@@ -304,7 +305,7 @@ async function fetchHistoricalSeed() {
 		let priceDecimals = 2;
 		let qtyDecimals = 4;
 		try {
-			const metadataResponse = await fetch('http://localhost:8000/api/symbol-info');
+			const metadataResponse = await fetch(`${apiBase}/api/symbol-info`);
 			if (!metadataResponse.ok) {
 				throw new Error(`HTTP error! status: ${metadataResponse.status}`);
 			}
@@ -343,7 +344,7 @@ async function fetchHistoricalSeed() {
 		if (generation !== seedGeneration) return;
 		self.postMessage({ type: 'metadata', priceDecimals, qtyDecimals });
 
-		const url = `http://localhost:8000/api/klines?symbol=${encodeURIComponent(requestedSymbol)}`
+		const url = `${apiBase}/api/klines?symbol=${encodeURIComponent(requestedSymbol)}`
 			+ `&interval=${encodeURIComponent(requestedInterval)}&startTime=${startTime}&limit=1000`;
 		const response = await fetch(url);
 		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -392,6 +393,9 @@ function handleConfig(msg) {
 	const wasEmitting = emitting;
 	let refreshSeed = false;
 
+	if (typeof msg.apiBase === 'string' && msg.apiBase) {
+		apiBase = msg.apiBase.replace(/\/+$/, '');
+	}
 	if (typeof msg.symbol === 'string' && msg.symbol && msg.symbol !== symbol) {
 		symbol = msg.symbol;
 		refreshSeed = true;
