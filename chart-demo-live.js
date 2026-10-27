@@ -632,17 +632,21 @@ async function fetchHistoricalSeed() {
 		const rawTrades = await response.json();
 		if (generation !== seedGeneration) return;
 		const tradesArray = Array.isArray(rawTrades) ? rawTrades : (rawTrades.data || rawTrades);
+		console.log(`Fetched historical trades response length: ${tradesArray.length}`);
 
 		// 1. Lock ticking
 		isSeeding = true;
 
 		// 2. Feed all trades synchronously to the processor
-		tradesArray.sort((a, b) => a.time - b.time).forEach(t => {
+		tradesArray.sort((a, b) => a.time - b.time).forEach((t, index) => {
 			processTrade({
 				price: parseFloat(t.price),
 				qty: parseFloat(t.qty),
 				time: t.time
 			});
+			if (index < 5) {
+				console.log(`Trade ${index + 1}: tradeBuffer.length = ${tradeBuffer.length}`);
+			}
 		});
 
 		console.log(`Seeded ${tradesArray.length} historical trades into queue.`);
@@ -651,6 +655,11 @@ async function fetchHistoricalSeed() {
 		isSeeding = false;
 
 		// 4. Emit the entire history as a single seed message
+		console.log('Rebucketing historical trades:', {
+			tradeBufferLength: tradeBuffer.length,
+			firstTradeTime: tradeBuffer[0]?.time,
+			isSeeding
+		});
 		const rows = rebucketFromBuffer();
 		self.postMessage({ type: 'seed', data: rows });
 		console.log(`Emitted seed with ${rows.length} historical candles.`);

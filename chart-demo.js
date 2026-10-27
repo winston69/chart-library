@@ -145,6 +145,7 @@ function bucketKey(row) {
 }
 
 const xAcc = d => d.openTime;
+let emptySeedDomain = false;
 
 // ─── PLANE ───
 
@@ -447,11 +448,21 @@ function applySeed(rows) {
 		if (h !== priceChart) h.setData(latestRows);
 	}
 	plane.resetZoom('both');
+	emptySeedDomain = rows.length === 0;
+	if (emptySeedDomain) {
+		const now = Date.now();
+		plane.xScale.domain = [now - currentWindowMs(), now];
+		plane._xDomainLocked = true;
+	}
 	plane.update();
 	plane.autoFitVisibleY();
 }
 
 function applyTick(row) {
+	if (emptySeedDomain) {
+		const now = Date.now();
+		plane.xScale.domain = [now - currentWindowMs(), now];
+	}
 	for (const h of activeHandles()) h.appendOrUpdate(row, bucketKey);
 	latestRows = priceChart.data;
 	plane.update();
