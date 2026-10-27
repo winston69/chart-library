@@ -20,7 +20,7 @@ test('default numeric tick target increases with band height', () => {
 	plane._yGroups.price._yBottom = 300;
 	const tallerBandTickCount = axis._computeMaxTicks();
 
-	assert.equal(shorterBandTickCount, 4);
-	assert.equal(tallerBandTickCount, 6);
+	assert.equal(shorterBandTickCount, 2);
+	assert.equal(tallerBandTickCount, 4);
 	assert.ok(tallerBandTickCount > shorterBandTickCount);
 });

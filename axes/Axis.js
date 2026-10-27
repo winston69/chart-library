@@ -14,8 +14,8 @@ export const TICK_LENGTH_MINOR = 5;
 export const TICK_LENGTH_MICRO = 3;
 
 const DEFAULT_TIME_TICK_COUNT = 15;
-const DEFAULT_MIN_NUMERIC_TICK_COUNT = 4;
-const DEFAULT_MIN_TICK_SPACING = 50;
+const DEFAULT_MIN_NUMERIC_TICK_COUNT = 2;
+const DEFAULT_MIN_TICK_SPACING = 75;
 
 // Pixel-spacing floors. A minor or micro tier whose on-screen spacing
 // falls below these thresholds is dropped from the render pass.
