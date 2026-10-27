@@ -1,0 +1,91 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { TradesCard } from '../cards/TradesCard.js';
+
+class Element {
+	constructor(tagName) {
+		this.tagName = tagName;
+		this.children = [];
+		this.textContent = '';
+		this.className = '';
+	}
+
+	appendChild(child) {
+		this.children.push(child);
+		child.parentNode = this;
+		return child;
+	}
+
+	insertBefore(child, reference) {
+		const index = reference ? this.children.indexOf(reference) : -1;
+		if (index === -1) this.children.push(child);
+		else this.children.splice(index, 0, child);
+		child.parentNode = this;
+		return child;
+	}
+
+	removeChild(child) {
+		const index = this.children.indexOf(child);
+		if (index !== -1) this.children.splice(index, 1);
+		child.parentNode = null;
+		return child;
+	}
+
+	replaceChildren(...children) {
+		this.children = [];
+		for (const child of children) this.appendChild(child);
+	}
+
+	get firstChild() {
+		return this.children[0] || null;
+	}
+
+	get lastChild() {
+		return this.children.at(-1) || null;
+	}
+}
+
+test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+	globalThis.document = { createElement: tagName => new Element(tagName) };
+	t.after(() => {
+		if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
+		else delete globalThis.document;
+	});
+
+	const card = new TradesCard();
+	card.render(new Element('div'));
+
+	card.addTrade({
+		time: '12:00:00',
+		price: '100.00',
+		value: '100',
+		isBuyerMaker: false
+	});
+	card.addTrade({
+		time: '12:00:01',
+		price: '101.00',
+		value: '101',
+		isBuyerMaker: true
+	});
+
+	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
+	assert.equal(card._elements.tbody.children[0].className, 'trades-sell');
+	assert.equal(card._elements.tbody.children[1].className, 'trades-buy');
+
+	for (let index = 0; index < 51; index++) {
+		card.addTrade({
+			time: `12:01:${String(index).padStart(2, '0')}`,
+			price: String(index),
+			value: String(index),
+			isBuyerMaker: false
+		});
+	}
+
+	assert.equal(card._elements.tbody.children.length, 50);
+	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
+	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
+
+	card.clear();
+	assert.equal(card._elements.tbody.children.length, 0);
+});

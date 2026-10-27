@@ -336,13 +336,18 @@ function connect() {
 		const price = Number(payload.p);
 		const quantity = Number(payload.q);
 		const tradeTime = Number(payload.T);
+		const isBuyerMaker = payload.m;
 
-		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)) return;
+		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)
+			|| typeof isBuyerMaker !== 'boolean') return;
 		const lastTrade = tradeBuffer[tradeBuffer.length - 1];
 		if (lastTrade && lastTrade.time === tradeTime && lastTrade.price === price) return;
 
-		// Pass directly to the processor
 		processTrade({ price, qty: quantity, time: tradeTime });
+		self.postMessage({
+			type: 'trade',
+			data: { price, qty: quantity, time: tradeTime, isBuyerMaker }
+		});
 	};
 
 	ws.onerror = () => {

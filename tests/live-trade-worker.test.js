@@ -14,10 +14,12 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 		qty: '1',
 		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000
 	}));
+	const lastRestTradeTime = restTrades.at(-1).time;
 	const websocketTrade = {
 		price: Number(restTrades[restTrades.length - 1].price) + 1,
 		qty: 1,
-		time: restTrades[restTrades.length - 1].time + 30000
+		time: lastRestTradeTime + Math.min(30000, 59999 - (lastRestTradeTime % 60000)),
+		isBuyerMaker: true
 	};
 
 	globalThis.self = {
@@ -51,7 +53,8 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 				e: 'trade',
 				p: String(websocketTrade.price),
 				q: String(websocketTrade.qty),
-				T: websocketTrade.time
+				T: websocketTrade.time,
+				m: websocketTrade.isBuyerMaker
 			})
 		});
 		socket.onmessage({
@@ -59,7 +62,8 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 				e: 'trade',
 				p: String(websocketTrade.price),
 				q: String(websocketTrade.qty),
-				T: websocketTrade.time
+				T: websocketTrade.time,
+				m: websocketTrade.isBuyerMaker
 			})
 		});
 		return Response.json(restTrades);
@@ -102,4 +106,14 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 		rows.map(row => row.openTime).toSorted((a, b) => a - b)
 	);
 	assert.equal(rows.at(-1).volume, 2, 'duplicate WebSocket trade should be skipped');
+	assert.deepEqual(
+		messages.filter(message => message.type === 'trade').map(message => message.data),
+		[{
+			price: websocketTrade.price,
+			qty: websocketTrade.qty,
+			time: websocketTrade.time,
+			isBuyerMaker: websocketTrade.isBuyerMaker
+		}],
+		'only the unique WebSocket trade should be posted as a trade message'
+	);
 });

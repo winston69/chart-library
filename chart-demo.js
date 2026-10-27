@@ -62,6 +62,7 @@ import { CardStrip } from './cards/CardStrip.js';
 import { Legend } from './cards/Legend.js';
 import { OHLCCard } from './cards/OHLCCard.js';
 import { InfoCard } from './cards/InfoCard.js';
+import { TradesCard } from './cards/TradesCard.js';
 
 // UI
 import { Button } from './ui/Button.js';
@@ -70,7 +71,7 @@ import { Checklist } from './ui/Checklist.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 import { Loader } from './ui/Loader.js';
-import { formatNumber } from './utils/Format.js';
+import { formatNumber, formatCompact } from './utils/Format.js';
 
 // ─── CONSTANTS ───
 
@@ -78,6 +79,12 @@ let SYMBOL_DECIMALS = 2;
 let QTY_DECIMALS = 4;
 
 const VISUAL_UPDATE_MS = 1000;   // 1 Hz tick cadence
+const tradeTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hourCycle: 'h23'
+});
 const DEPLOYED_WORKER_URL = 'https://chart-library-api.prd-cmn.workers.dev';
 const IS_LOCAL_DEVELOPMENT = ['localhost', '127.0.0.1', '::1']
 	.includes(window.location.hostname);
@@ -426,6 +433,13 @@ const infoCard = new InfoCard({
 });
 cardStrip.addCard(infoCard);
 
+const tradesCard = new TradesCard({
+	id: 'main-trades',
+	width: 220,
+	visible: currentSource === 'live'
+});
+cardStrip.addCard(tradesCard);
+
 crosshair.onMove = (payload) => {
 	if (!payload) {
 		tooltip.hide();
@@ -608,6 +622,22 @@ function handleLiveMessage(evt, source) {
 		case 'tick':
 			applyTick(msg.data);
 			break;
+		case 'trade': {
+			const trade = msg.data;
+			if (!trade || !Number.isFinite(trade.time)
+				|| !Number.isFinite(trade.price) || !Number.isFinite(trade.qty)
+				|| typeof trade.isBuyerMaker !== 'boolean') {
+				console.error('[live feed] received malformed trade message', trade);
+				break;
+			}
+			tradesCard.addTrade({
+				time: tradeTimeFormatter.format(trade.time),
+				price: formatNumber(trade.price, SYMBOL_DECIMALS),
+				value: formatCompact(trade.price * trade.qty),
+				isBuyerMaker: trade.isBuyerMaker
+			});
+			break;
+		}
 		case 'state':
 			if (msg.running !== feedRunning) {
 				feedRunning = msg.running;
@@ -675,6 +705,7 @@ function switchSource(newSource) {
 	}
 
 	currentSource = newSource;
+	tradesCard.setVisible(currentSource === 'live');
 
 	if (currentSource === 'live') {
 		ensureLiveWorker().postMessage({ type: 'state' });
@@ -738,6 +769,7 @@ function resetData() {
 	// Clear the chart up front. The worker reseeds (demo) or
 	// reconnects and fetches a fresh seed (live).
 	for (const h of activeHandles()) h.setData([]);
+	tradesCard.clear();
 	latestRows = priceChart.data;
 
 	if (currentSource === 'demo') {
