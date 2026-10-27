@@ -2,18 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<!--
 <meta http-equiv="Content-Security-Policy" content="
-script-src 'self';
-style-src 'self';
-img-src 'self';
-font-src 'self';
-object-src 'none';
-frame-src 'none';
+  default-src 'self';
+  script-src 'self';
+  style-src 'self';
+  img-src 'self' data:;
+  font-src 'self';
+  object-src 'none';
+  frame-src 'none';
+  connect-src 'self'
+              https://chart-library-api.prd-cmn.workers.dev
+              https://api.pro.coins.ph
+              wss://wsapi.pro.coins.ph
+              http://localhost:8000
+              ws://localhost:8000;
+  worker-src 'self' blob:;
 ">
-connect-src 'self';
-default-src 'self';
- -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Multi-Layer Shared Scale</title>
 <link rel="icon" href="./favicon.ico" sizes="32x32">
