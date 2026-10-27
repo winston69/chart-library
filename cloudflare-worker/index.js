@@ -9,11 +9,8 @@ function corsHeaders(request, env) {
 	const headers = new Headers({ 'Vary': 'Origin' });
 	const origin = request.headers.get('Origin');
 
-	if (origin && (env.ALLOWED_ORIGIN === '*' || origin === env.ALLOWED_ORIGIN)) {
-		headers.set(
-			'Access-Control-Allow-Origin',
-			env.ALLOWED_ORIGIN === '*' ? '*' : origin
-		);
+	if (origin && origin === env.ALLOWED_ORIGIN) {
+		headers.set('Access-Control-Allow-Origin', origin);
 		headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
 		headers.set('Access-Control-Allow-Headers', 'Content-Type');
 	}
@@ -33,9 +30,7 @@ export default {
 		const requestUrl = new URL(request.url);
 		const upstreamPath = ROUTES[requestUrl.pathname];
 		const origin = request.headers.get('Origin');
-		const isAllowedOrigin = !origin
-			|| env.ALLOWED_ORIGIN === '*'
-			|| origin === env.ALLOWED_ORIGIN;
+		const isAllowedOrigin = origin === env.ALLOWED_ORIGIN;
 
 		if (!upstreamPath) {
 			return jsonResponse(request, env, { error: 'Not found' }, 404);
