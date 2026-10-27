@@ -4,6 +4,7 @@
 
 import { SVG } from '../core/SVG.js';
 import { CSS } from '../core/CSS.js';
+import { formatCompact } from '../utils/Format.js';
 import {
 	Axis,
 	TICK_LENGTH_MAJOR,
@@ -17,7 +18,8 @@ export class YAxis extends Axis {
 	constructor(options = {}) {
 		super({
 			...options,
-			orientation: options.orientation || 'right'
+			orientation: options.orientation || 'right',
+			tickFormat: options.tickFormat === undefined ? formatCompact : options.tickFormat
 		});
 	}
 
@@ -105,12 +107,15 @@ export class YAxis extends Axis {
 		}
 
 		const labelAnchor = this.positionIntent === 'inside' ? 'end' : 'start';
-		const labelX = position + (majorTickLength + this.tickPadding) * tickDirection;
+		const watermarkStyle = this._isWatermarkStyle();
+		const labelX = watermarkStyle
+			? this._getWatermarkTickLabelX(position, tickDirection, majorTickLength)
+			: position + (majorTickLength + this.tickPadding) * tickDirection;
 		const tickEndX = position + majorTickLength * tickDirection;
-		const fontSize = this.fontSize;
+		const fontSize = watermarkStyle ? this._getWatermarkMarginSize() / 3 : this.fontSize;
 		const plotLeft = plane.plotLeft;
 
-		let maxLabelWidth = 0;
+		let maxLabelWidth = watermarkStyle ? this._getWatermarkLabelSpace() : 0;
 
 		const tickLines = el.tickLines;
 		const tickLabels = el.tickLabels;
@@ -137,11 +142,23 @@ export class YAxis extends Axis {
 				label.setAttribute('visibility', 'visible');
 				label.setAttribute('x', labelX);
 				label.setAttribute('y', y);
-				label.setAttribute('text-anchor', labelAnchor);
+				label.setAttribute('text-anchor', watermarkStyle ? 'middle' : labelAnchor);
 				label.setAttribute('dominant-baseline', 'middle');
+				if (watermarkStyle) {
+					const angle = tickDirection > 0 ? 90 : -90;
+					label.setAttribute('font-size', fontSize);
+					label.setAttribute('class', `${css.tickLabel} ${css.watermarkTickLabel}`);
+					label.setAttribute('transform', `rotate(${angle}, ${labelX}, ${y})`);
+				} else {
+					label.removeAttribute('font-size');
+					label.removeAttribute('transform');
+					label.setAttribute('class', css.tickLabel);
+				}
 
-				const w = text.length * (fontSize * 0.6) + 2;
-				if (w > maxLabelWidth) maxLabelWidth = w;
+				if (!watermarkStyle) {
+					const w = text.length * (fontSize * 0.6) + 2;
+					if (w > maxLabelWidth) maxLabelWidth = w;
+				}
 			}
 
 			if (showGrid) {
@@ -193,6 +210,8 @@ export class YAxis extends Axis {
 		} else if (el.microTickLines.length > 0) {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
+
+		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals);
 
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
@@ -274,12 +293,15 @@ export class YAxis extends Axis {
 		}
 
 		const labelAnchor = this.positionIntent === 'inside' ? 'start' : 'end';
-		const labelX = position + (majorTickLength + this.tickPadding) * tickDirection;
+		const watermarkStyle = this._isWatermarkStyle();
+		const labelX = watermarkStyle
+			? this._getWatermarkTickLabelX(position, tickDirection, majorTickLength)
+			: position + (majorTickLength + this.tickPadding) * tickDirection;
 		const tickEndX = position + majorTickLength * tickDirection;
-		const fontSize = this.fontSize;
+		const fontSize = watermarkStyle ? this._getWatermarkMarginSize() / 3 : this.fontSize;
 		const plotRight = plane.plotRight;
 
-		let maxLabelWidth = 0;
+		let maxLabelWidth = watermarkStyle ? this._getWatermarkLabelSpace() : 0;
 
 		const tickLines = el.tickLines;
 		const tickLabels = el.tickLabels;
@@ -306,11 +328,23 @@ export class YAxis extends Axis {
 				label.setAttribute('visibility', 'visible');
 				label.setAttribute('x', labelX);
 				label.setAttribute('y', y);
-				label.setAttribute('text-anchor', labelAnchor);
+				label.setAttribute('text-anchor', watermarkStyle ? 'middle' : labelAnchor);
 				label.setAttribute('dominant-baseline', 'middle');
+				if (watermarkStyle) {
+					const angle = tickDirection > 0 ? 90 : -90;
+					label.setAttribute('font-size', fontSize);
+					label.setAttribute('class', `${css.tickLabel} ${css.watermarkTickLabel}`);
+					label.setAttribute('transform', `rotate(${angle}, ${labelX}, ${y})`);
+				} else {
+					label.removeAttribute('font-size');
+					label.removeAttribute('transform');
+					label.setAttribute('class', css.tickLabel);
+				}
 
-				const w = text.length * (fontSize * 0.6) + 2;
-				if (w > maxLabelWidth) maxLabelWidth = w;
+				if (!watermarkStyle) {
+					const w = text.length * (fontSize * 0.6) + 2;
+					if (w > maxLabelWidth) maxLabelWidth = w;
+				}
 			}
 
 			if (showGrid) {
@@ -363,6 +397,8 @@ export class YAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
+		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals);
+
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
 			const labelY = (yMin + yMax) / 2;
@@ -374,6 +410,31 @@ export class YAxis extends Axis {
 			labelEl.setAttribute('transform',
 				`rotate(${rotationAngle}, ${labelXAxis}, ${labelY})`);
 		}
+	}
+
+	_renderWatermark(yMin, yMax, position, tickDirection, majorTickLength, decimals) {
+		const watermark = this._elements.watermark;
+		if (!watermark || !this._isWatermarkStyle()) return;
+
+		const domain = this.scale.domain;
+		const value = Math.max(domain[0], domain[1]);
+		const text = this._formatTick(value, decimals);
+		const x = this._getWatermarkTickLabelX(position, tickDirection, majorTickLength);
+		const y = (yMin + yMax) / 2;
+		const height = Math.abs(yMax - yMin);
+		const fontSize = Math.min(48, Math.max(12, height / 3));
+		const targetSpan = height / 3;
+		const textWidth = Math.max(1, text.length * fontSize * 0.6);
+		const stretch = targetSpan / textWidth;
+		const angle = tickDirection > 0 ? 90 : -90;
+
+		if (watermark.textContent !== text) watermark.textContent = text;
+		watermark.setAttribute('visibility', 'visible');
+		watermark.setAttribute('x', x);
+		watermark.setAttribute('y', y);
+		watermark.setAttribute('font-size', fontSize);
+		watermark.setAttribute('transform',
+			`translate(${x} ${y}) rotate(${angle}) scale(${stretch} 1) translate(${-x} ${-y})`);
 	}
 }
 

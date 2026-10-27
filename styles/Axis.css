@@ -49,6 +49,21 @@
     user-select: none;
 }
 
+.axis-watermark-tick-label {
+    text-anchor: middle;
+}
+
+.axis-watermark {
+    fill: var(--tick-label-color);
+    font-family: var(--axis-font-family);
+    font-weight: bold;
+    opacity: 0.1;
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: central;
+    user-select: none;
+}
+
 .axis-axis-label {
     font-family: var(--axis-font-family);
     font-size: var(--axis-label-font-size);

@@ -4,6 +4,7 @@
 
 import { SVG } from '../core/SVG.js';
 import { CSS } from '../core/CSS.js';
+import { formatNumber } from '../utils/Format.js';
 import { AnnotationLayer } from '../core/AnnotationLayer.js';
 import { Events } from '../core/Events.js';
 import { Utils } from '../core/Utils.js';
@@ -617,7 +618,7 @@ export class CrosshairLayer extends AnnotationLayer {
 			const ss = String(d.getSeconds()).padStart(2, '0');
 			return `${hh}:${mm}:${ss}`;
 		}
-		return value.toFixed(2);
+		return formatNumber(value, 2);
 	}
 
 	_defaultYFormat(value, axis) {
@@ -625,7 +626,7 @@ export class CrosshairLayer extends AnnotationLayer {
 		const decimals = axis && typeof axis._getEffectiveDecimals === 'function'
 			? axis._getEffectiveDecimals()
 			: 2;
-		return value.toFixed(decimals);
+		return formatNumber(value, decimals);
 	}
 
 	// ─── Static geometry ───

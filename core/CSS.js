@@ -126,6 +126,8 @@ export const CSS = {
 		tickLabel: 'axis-tick-label',
 		tickLabelInside: 'axis-tick-label inside',
 		tickLabelOutside: 'axis-tick-label outside',
+		watermarkTickLabel: 'axis-watermark-tick-label',
+		watermark: 'axis-watermark',
 		axisLabel: 'axis-axis-label',
 		gridLine: 'axis-grid-line'
 	},

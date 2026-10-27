@@ -12,6 +12,8 @@
 //   id, width, render(container), update(), destroy()
 // ──────────────────────────────────────────────────────────────
 
+import { formatNumber } from '../utils/Format.js';
+
 const DEFAULT_WIDTH = 140;
 
 const FIELDS = ['Open', 'High', 'Low', 'Close'];
@@ -219,7 +221,7 @@ export class OHLCCard {
 			}
 			if (item.value !== v) {
 				item.value = v;
-				if (item.e) item.e.textContent = v.toFixed(decimals);
+				if (item.e) item.e.textContent = formatNumber(v, decimals);
 			}
 		}
 

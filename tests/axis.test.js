@@ -1,6 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Axis } from '../axes/Axis.js';
+import { YAxis } from '../axes/YAxis.js';
+import { formatCompact, formatNumber } from '../utils/Format.js';
+
+test('number formatters group values and compact large positive and negative values', () => {
+	assert.equal(formatNumber(5079123.45, 2), '5,079,123.45');
+	assert.equal(formatCompact(1200), '1.2K');
+	assert.equal(formatCompact(5100000), '5.1M');
+	assert.equal(formatCompact(2300000000), '2.3B');
+	assert.equal(formatCompact(-1200), '-1.2K');
+	assert.equal(formatCompact(12.345), '12.3');
+	assert.equal(new YAxis({ fontSize: 12 })._formatTick(1200, 2), '1.2K');
+});
+
+test('watermark Y-axis requests a narrower margin than standard labels', () => {
+	const options = {
+		scale: {
+			domain: [0, 1000000000],
+			range: [600, 0],
+			toScreen: value => 600 - value / 1000000000 * 600
+		},
+		fontSize: 12,
+		showLabel: false
+	};
+	const standardAxis = new YAxis(options);
+	assert.equal(standardAxis.labelStyle, 'standard');
+	const standard = standardAxis.getMarginRequest().right;
+	const watermark = new YAxis({
+		...options,
+		labelStyle: 'watermark'
+	}).getMarginRequest().right;
+
+	assert.ok(watermark < standard);
+});
 
 test('default numeric tick target increases with band height', () => {
 	const plane = {
