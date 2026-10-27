@@ -128,8 +128,8 @@ let lastPrice = null;
 const tradeBuffer = [];
 const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
-const buyAverage = { quantities: [], total: 0, value: 0 };
-const sellAverage = { quantities: [], total: 0, value: 0 };
+const buyQuantities = [];
+const sellQuantities = [];
 
 // ─── Outbound tick throttle ───
 let lastTickAt = 0;
@@ -150,20 +150,18 @@ function postError(message) {
 }
 
 function resetTradeAverages() {
-	for (const average of [buyAverage, sellAverage]) {
-		average.quantities.length = 0;
-		average.total = 0;
-		average.value = 0;
-	}
+	buyQuantities.length = 0;
+	sellQuantities.length = 0;
 }
 
-function updateAverage(average, quantity) {
-	average.quantities.push(quantity);
-	average.total += quantity;
-	if (average.quantities.length > AVERAGE_TRADE_COUNT) {
-		average.total -= average.quantities.shift();
-	}
-	average.value = average.total / average.quantities.length;
+function addTradeQuantity(quantities, quantity) {
+	quantities.push(quantity);
+	if (quantities.length > AVERAGE_TRADE_COUNT) quantities.shift();
+}
+
+function averageQuantity(quantities) {
+	if (quantities.length === 0) return 0;
+	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
 }
 
 function countDecimals(stepSize) {
@@ -369,13 +367,16 @@ function connect() {
 		if (lastTrade && lastTrade.time === trade.time && lastTrade.price === trade.price) return;
 
 		processTrade(trade);
-		updateAverage(trade.isBuyerMaker ? sellAverage : buyAverage, trade.qty);
+		addTradeQuantity(
+			trade.isBuyerMaker ? sellQuantities : buyQuantities,
+			trade.qty
+		);
 		self.postMessage({
 			type: 'trade',
 			data: {
 				...trade,
-				aveBuy: buyAverage.value,
-				aveSell: sellAverage.value
+				aveBuy: averageQuantity(buyQuantities),
+				aveSell: averageQuantity(sellQuantities)
 			}
 		});
 	};
@@ -680,8 +681,18 @@ async function fetchHistoricalSeed() {
 		// 1. Lock ticking
 		isSeeding = true;
 
+		const sortedTrades = tradesArray.sort((a, b) => a.time - b.time);
+		for (const trade of sortedTrades) {
+			const quantity = Number(trade.qty);
+			if (!Number.isFinite(quantity) || typeof trade.isBuyerMaker !== 'boolean') continue;
+			addTradeQuantity(
+				trade.isBuyerMaker ? sellQuantities : buyQuantities,
+				quantity
+			);
+		}
+
 		// 2. Feed all trades synchronously to the processor
-		tradesArray.sort((a, b) => a.time - b.time).forEach((t, index) => {
+		sortedTrades.forEach((t, index) => {
 			processTrade({
 				price: parseFloat(t.price),
 				qty: parseFloat(t.qty),

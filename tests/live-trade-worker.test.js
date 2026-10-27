@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('rebuckets interleaved WebSocket and REST trades chronologically', async t => {
+test('seeds rolling averages from REST trades without emitting them as live trades', async t => {
 	const globals = ['self', 'WebSocket', 'fetch'];
 	const descriptors = new Map(globals.map(name => [
 		name,
@@ -11,8 +11,9 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 	const messages = [];
 	const restTrades = Array.from({ length: 1000 }, (_, index) => ({
 		price: String(100 + index / 100),
-		qty: '1',
-		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000
+		qty: '10',
+		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000,
+		isBuyerMaker: false
 	}));
 	const lastRestTradeTime = restTrades.at(-1).time;
 	const websocketTrades = Array.from({ length: 51 }, (_, index) => ({
@@ -56,17 +57,6 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 			});
 		}
 
-		for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
-			socket.onmessage({
-				data: JSON.stringify({
-				e: 'trade',
-				p: String(websocketTrade.price),
-				q: String(websocketTrade.qty),
-				T: websocketTrade.time,
-				m: websocketTrade.isBuyerMaker
-				})
-			})
-		}
 		return Response.json(restTrades);
 	};
 
@@ -106,6 +96,24 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 		rows.map(row => row.openTime),
 		rows.map(row => row.openTime).toSorted((a, b) => a - b)
 	);
+	assert.equal(
+		messages.filter(message => message.type === 'trade').length,
+		0,
+		'REST seed trades should not be sent to the table'
+	);
+
+	for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
+		socket.onmessage({
+			data: JSON.stringify({
+				e: 'trade',
+				p: String(websocketTrade.price),
+				q: String(websocketTrade.qty),
+				T: websocketTrade.time,
+				m: websocketTrade.isBuyerMaker
+			})
+		});
+	}
+
 	assert.deepEqual(
 		[
 			messages.filter(message => message.type === 'trade').length,
@@ -114,7 +122,7 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveSell
 		],
-		[52, 1, 25.5, 26.5, 8],
-		'trade averages should use only the last 50 unique trades for each side'
+		[52, 9.82, 25.5, 26.5, 8],
+		'trade averages should seed from REST history and then roll with unique WebSocket trades'
 	);
 });
