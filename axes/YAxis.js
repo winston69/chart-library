@@ -107,15 +107,12 @@ export class YAxis extends Axis {
 		}
 
 		const labelAnchor = this.positionIntent === 'inside' ? 'end' : 'start';
-		const watermarkStyle = this._isWatermarkStyle();
-		const labelX = watermarkStyle
-			? this._getWatermarkTickLabelX(position, tickDirection, majorTickLength)
-			: position + (majorTickLength + this.tickPadding) * tickDirection;
+		const labelX = position + (majorTickLength + this.tickPadding) * tickDirection;
 		const tickEndX = position + majorTickLength * tickDirection;
-		const fontSize = watermarkStyle ? this._getWatermarkMarginSize() / 3 : this.fontSize;
+		const fontSize = this.fontSize;
 		const plotLeft = plane.plotLeft;
 
-		let maxLabelWidth = watermarkStyle ? this._getWatermarkLabelSpace() : 0;
+		let maxLabelWidth = 0;
 
 		const tickLines = el.tickLines;
 		const tickLabels = el.tickLabels;
@@ -125,6 +122,9 @@ export class YAxis extends Axis {
 			const value = majorTicks[i];
 			const y = scale.toScreen(value);
 			if (!isFinite(y)) continue;
+			const text = this._formatTick(value, decimals);
+			const w = text.length * (fontSize * 0.6) + 2;
+			if (w > maxLabelWidth) maxLabelWidth = w;
 
 			if (showTicks) {
 				const line = tickLines[i];
@@ -137,28 +137,13 @@ export class YAxis extends Axis {
 
 			if (showLabels) {
 				const label = tickLabels[i];
-				const text = this._formatTick(value, decimals);
 				if (label.textContent !== text) label.textContent = text;
 				label.setAttribute('visibility', 'visible');
 				label.setAttribute('x', labelX);
 				label.setAttribute('y', y);
-				label.setAttribute('text-anchor', watermarkStyle ? 'middle' : labelAnchor);
+				label.setAttribute('text-anchor', labelAnchor);
 				label.setAttribute('dominant-baseline', 'middle');
-				if (watermarkStyle) {
-					const angle = tickDirection > 0 ? 90 : -90;
-					label.setAttribute('font-size', fontSize);
-					label.setAttribute('class', `${css.tickLabel} ${css.watermarkTickLabel}`);
-					label.setAttribute('transform', `rotate(${angle}, ${labelX}, ${y})`);
-				} else {
-					label.removeAttribute('font-size');
-					label.removeAttribute('transform');
-					label.setAttribute('class', css.tickLabel);
-				}
-
-				if (!watermarkStyle) {
-					const w = text.length * (fontSize * 0.6) + 2;
-					if (w > maxLabelWidth) maxLabelWidth = w;
-				}
+				label.removeAttribute('transform');
 			}
 
 			if (showGrid) {
@@ -211,7 +196,7 @@ export class YAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
-		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength);
+		this._renderWatermark(yMin, yMax, position, tickDirection, maxLabelWidth);
 
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
@@ -293,15 +278,12 @@ export class YAxis extends Axis {
 		}
 
 		const labelAnchor = this.positionIntent === 'inside' ? 'start' : 'end';
-		const watermarkStyle = this._isWatermarkStyle();
-		const labelX = watermarkStyle
-			? this._getWatermarkTickLabelX(position, tickDirection, majorTickLength)
-			: position + (majorTickLength + this.tickPadding) * tickDirection;
+		const labelX = position + (majorTickLength + this.tickPadding) * tickDirection;
 		const tickEndX = position + majorTickLength * tickDirection;
-		const fontSize = watermarkStyle ? this._getWatermarkMarginSize() / 3 : this.fontSize;
+		const fontSize = this.fontSize;
 		const plotRight = plane.plotRight;
 
-		let maxLabelWidth = watermarkStyle ? this._getWatermarkLabelSpace() : 0;
+		let maxLabelWidth = 0;
 
 		const tickLines = el.tickLines;
 		const tickLabels = el.tickLabels;
@@ -311,6 +293,9 @@ export class YAxis extends Axis {
 			const value = majorTicks[i];
 			const y = scale.toScreen(value);
 			if (!isFinite(y)) continue;
+			const text = this._formatTick(value, decimals);
+			const w = text.length * (fontSize * 0.6) + 2;
+			if (w > maxLabelWidth) maxLabelWidth = w;
 
 			if (showTicks) {
 				const line = tickLines[i];
@@ -323,28 +308,13 @@ export class YAxis extends Axis {
 
 			if (showLabels) {
 				const label = tickLabels[i];
-				const text = this._formatTick(value, decimals);
 				if (label.textContent !== text) label.textContent = text;
 				label.setAttribute('visibility', 'visible');
 				label.setAttribute('x', labelX);
 				label.setAttribute('y', y);
-				label.setAttribute('text-anchor', watermarkStyle ? 'middle' : labelAnchor);
+				label.setAttribute('text-anchor', labelAnchor);
 				label.setAttribute('dominant-baseline', 'middle');
-				if (watermarkStyle) {
-					const angle = tickDirection > 0 ? 90 : -90;
-					label.setAttribute('font-size', fontSize);
-					label.setAttribute('class', `${css.tickLabel} ${css.watermarkTickLabel}`);
-					label.setAttribute('transform', `rotate(${angle}, ${labelX}, ${y})`);
-				} else {
-					label.removeAttribute('font-size');
-					label.removeAttribute('transform');
-					label.setAttribute('class', css.tickLabel);
-				}
-
-				if (!watermarkStyle) {
-					const w = text.length * (fontSize * 0.6) + 2;
-					if (w > maxLabelWidth) maxLabelWidth = w;
-				}
+				label.removeAttribute('transform');
 			}
 
 			if (showGrid) {
@@ -397,7 +367,7 @@ export class YAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
-		this._renderWatermark(yMin, yMax, position, tickDirection, majorTickLength);
+		this._renderWatermark(yMin, yMax, position, tickDirection, maxLabelWidth);
 
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
@@ -412,7 +382,7 @@ export class YAxis extends Axis {
 		}
 	}
 
-	_renderWatermark(yMin, yMax, position, tickDirection, majorTickLength) {
+	_renderWatermark(yMin, yMax, position, tickDirection, maxLabelWidth) {
 		const watermark = this._elements.watermark;
 		if (!watermark || !this._isWatermarkStyle()) return;
 
@@ -421,22 +391,17 @@ export class YAxis extends Axis {
 			watermark.setAttribute('visibility', 'hidden');
 			return;
 		}
-		const x = this._getWatermarkTickLabelX(position, tickDirection, majorTickLength);
+		const marginWidth = this._getWatermarkMarginSize(maxLabelWidth);
+		const x = position + tickDirection * marginWidth / 2;
 		const y = (yMin + yMax) / 2;
-		const height = Math.abs(yMax - yMin);
-		const fontSize = Math.min(48, Math.max(12, height / 3));
-		const targetSpan = height / 3;
-		const textWidth = Math.max(1, text.length * fontSize * 0.6);
-		const stretch = targetSpan / textWidth;
-		const angle = tickDirection > 0 ? 90 : -90;
+		const fontSize = marginWidth / 3;
 
 		if (watermark.textContent !== text) watermark.textContent = text;
 		watermark.setAttribute('visibility', 'visible');
 		watermark.setAttribute('x', x);
 		watermark.setAttribute('y', y);
 		watermark.setAttribute('font-size', fontSize);
-		watermark.setAttribute('transform',
-			`translate(${x} ${y}) rotate(${angle}) scale(${stretch} 1) translate(${-x} ${-y})`);
+		watermark.setAttribute('transform', `rotate(-90, ${x}, ${y})`);
 	}
 }
 

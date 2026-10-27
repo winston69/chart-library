@@ -22,7 +22,7 @@ test('watermark Y-axis requests a narrower margin than standard labels', () => {
 			toScreen: value => 600 - value / 1000000000 * 600
 		},
 		fontSize: 12,
-		showLabel: false
+		label: 'Price'
 	};
 	const watermarkAxis = new YAxis(options);
 	assert.equal(watermarkAxis.labelStyle, 'watermark');
@@ -51,11 +51,17 @@ test('watermark renders the axis name instead of a tick value', () => {
 	});
 	axis._elements.watermark = watermark;
 
-	axis._renderWatermark(0, 600, 100, 1, 7);
+	axis._renderWatermark(0, 600, 100, 1, 20);
 
 	assert.equal(watermark.textContent, 'Price');
 	assert.equal(watermark.attributes.visibility, 'visible');
-	assert.match(watermark.attributes.transform, /scale\(/);
+	assert.equal(watermark.attributes.x, 100 + axis._getWatermarkMarginSize(20) / 2);
+	assert.equal(watermark.attributes.y, 300);
+	assert.equal(watermark.attributes['font-size'], axis._getWatermarkMarginSize(20) / 3);
+	assert.equal(
+		watermark.attributes.transform,
+		`rotate(-90, ${watermark.attributes.x}, ${watermark.attributes.y})`
+	);
 });
 
 test('default numeric tick target increases with band height', () => {

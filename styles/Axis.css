@@ -49,10 +49,6 @@
     user-select: none;
 }
 
-.axis-watermark-tick-label {
-    text-anchor: middle;
-}
-
 .axis-watermark {
     fill: var(--tick-label-color);
     font-family: var(--axis-font-family);
