@@ -83,9 +83,16 @@ export class TradesCard {
 		const signal = Math.abs(difference) <= tolerance
 			? '➖'
 			: difference > 0 ? '🔥' : '💧';
-		for (const value of [trade.time, trade.price, trade.value, signal]) {
+		const cells = [
+			{ value: trade.time },
+			{ value: trade.price, alignment: 'align-right' },
+			{ value: trade.value, alignment: 'align-right' },
+			{ value: signal, alignment: 'align-center' }
+		];
+		for (const { value, alignment } of cells) {
 			const cell = document.createElement('td');
 			cell.textContent = value;
+			if (alignment) cell.classList.add(alignment);
 			row.appendChild(cell);
 		}
 		return row;

@@ -83,6 +83,9 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
 	assert.equal(card._elements.tbody.children[0].classList.contains('sell'), true);
 	assert.equal(card._elements.tbody.children[0].children[3].textContent, '💧');
+	assert.equal(card._elements.tbody.children[0].children[1].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[2].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[3].classList.contains('align-center'), true);
 	assert.equal(card._elements.tbody.children[1].classList.contains('buy'), true);
 	assert.equal(card._elements.tbody.children[1].children[3].textContent, '🔥');
 
