@@ -1,8 +1,8 @@
 // ──────────────────────────────────────────────────────────────
 // OHLCCard.js
 //
-// A CardStrip card showing Open / High / Low / Close for the candle
-// under the crosshair, or the latest candle when the crosshair is
+// A CardStrip card showing Open / High / Low / Close / Volume for the
+// candle under the crosshair, or the latest candle when the crosshair is
 // not over the source layer's band.
 //
 // Field names are capitalized ('Open', 'High', ...) to match the
@@ -16,7 +16,7 @@ import { formatNumber } from '../utils/Format.js';
 
 const DEFAULT_WIDTH = 140;
 
-const FIELDS = ['Open', 'High', 'Low', 'Close'];
+const FIELDS = ['Open', 'High', 'Low', 'Close', 'Volume'];
 const timestampFormatter = new Intl.DateTimeFormat('en-US', {
 	month: '2-digit',
 	day: '2-digit',
@@ -50,6 +50,11 @@ export class OHLCCard {
 		this.decimals = options.decimals !== undefined
 			? options.decimals
 			: (this.layer && this.layer.decimals !== undefined ? this.layer.decimals : 2);
+		this.volumeDecimals = options.volumeDecimals !== undefined
+			? options.volumeDecimals
+			: this.decimals;
+		this.volumeAccessor = options.volumeAccessor || (datum =>
+			datum.volume !== undefined ? datum.volume : datum.v);
 
 		// ─── ITEMS ───
 		// One entry per field. Each entry holds the current value (for
@@ -59,11 +64,12 @@ export class OHLCCard {
 			Open: { value: null, e: null },
 			High: { value: null, e: null },
 			Low: { value: null, e: null },
-			Close: { value: null, e: null }
+			Close: { value: null, e: null },
+			Volume: { value: null, e: null }
 		});
 
 		// ─── STATE ───
-		this._hoveredSample = null;    // { Open, High, Low, Close, x } or null
+		this._hoveredSample = null;    // { Open, High, Low, Close, Volume, x } or null
 		this._lastDirection = null;    // 'up' | 'down' | null — for class diffing
 
 		// ─── DOM ───
@@ -168,7 +174,7 @@ export class OHLCCard {
 	 * Resolves the current values: the hovered sample if present,
 	 * otherwise the latest candle from the source layer.
 	 *
-	 * @returns {{ Open: number, High: number, Low: number, Close: number }|null}
+	 * @returns {{ Open: number, High: number, Low: number, Close: number, Volume: number }|null}
 	 */
 	_getSource() {
 		if (this._hoveredSample) return this._hoveredSample;
@@ -183,6 +189,7 @@ export class OHLCCard {
 			High: this.layer.highAccessor(last),
 			Low: this.layer.lowAccessor(last),
 			Close: this.layer.closeAccessor(last),
+			Volume: this.volumeAccessor(last),
 			openTime: last.openTime
 		};
 	}
@@ -208,7 +215,6 @@ export class OHLCCard {
 		}
 
 		this._applyTimestamp(src.openTime);
-		const decimals = this.decimals;
 		for (const key of FIELDS) {
 			const v = src[key];
 			const item = this.items[key];
@@ -221,6 +227,7 @@ export class OHLCCard {
 			}
 			if (item.value !== v) {
 				item.value = v;
+				const decimals = key === 'Volume' ? this.volumeDecimals : this.decimals;
 				if (item.e) item.e.textContent = formatNumber(v, decimals);
 			}
 		}
@@ -284,6 +291,7 @@ export class OHLCCard {
 			High: this.layer.highAccessor(datum),
 			Low: this.layer.lowAccessor(datum),
 			Close: this.layer.closeAccessor(datum),
+			Volume: this.volumeAccessor(datum),
 			openTime: datum.openTime,
 			x
 		};

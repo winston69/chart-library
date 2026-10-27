@@ -70,6 +70,7 @@ import { Checklist } from './ui/Checklist.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 import { Loader } from './ui/Loader.js';
+import { formatNumber } from './utils/Format.js';
 
 // ─── CONSTANTS ───
 
@@ -264,7 +265,7 @@ const referenceLine = new ReferenceLine({
 	valueAccessor: (stats) => stats.lastY,
 	showLabel: false,
 	showValue: true,
-	labelFormat: (v) => v.toFixed(SYMBOL_DECIMALS),
+	labelFormat: (v) => formatNumber(v, SYMBOL_DECIMALS),
 	pulse: true
 });
 
@@ -346,8 +347,8 @@ function activeHandles() {
 
 function refreshLegend() {
 	legendCard.items = [
-		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(QTY_DECIMALS) }
+		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => formatNumber(v, SYMBOL_DECIMALS) },
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => formatNumber(v, QTY_DECIMALS) }
 	];
 	const entries = {
 		bollinger: { label: 'BB Mean', layer: 'mean', color: '#845ef7' },
@@ -363,7 +364,7 @@ function refreshLegend() {
 				label: entry.label,
 				layer: indicator[entry.layer],
 				color: entry.color,
-				format: v => v.toFixed(SYMBOL_DECIMALS)
+				format: v => formatNumber(v, SYMBOL_DECIMALS)
 			});
 		}
 	}
@@ -393,11 +394,11 @@ const legendCard = new Legend({
 	width: 140,
 	plane,
 	selection: chartSelection,
-	valueFormat: (v) => v.toFixed(SYMBOL_DECIMALS),
+	valueFormat: (v) => formatNumber(v, SYMBOL_DECIMALS),
 	autoDetect: false,
 	items: [
-		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => v.toFixed(SYMBOL_DECIMALS) },
-		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => v.toFixed(QTY_DECIMALS) }
+		{ label: 'Price', layer: priceChart, color: '#4ade80', format: v => formatNumber(v, SYMBOL_DECIMALS) },
+		{ label: 'Volume', layer: volume.bars, color: '#4dabf7', format: v => formatNumber(v, QTY_DECIMALS) }
 	]
 });
 cardStrip.addCard(legendCard);
@@ -411,7 +412,8 @@ const ohlcCard = new OHLCCard({
 	crosshair,
 	title: 'Price',
 	width: 96,
-	decimals: SYMBOL_DECIMALS
+	decimals: SYMBOL_DECIMALS,
+	volumeDecimals: QTY_DECIMALS
 });
 cardStrip.addCard(ohlcCard);
 

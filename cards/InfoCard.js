@@ -2,15 +2,17 @@
 // InfoCard.js
 // ──────────────────────────────────────────────────────────────
 
+import { formatNumber } from '../utils/Format.js';
+
 const DEFAULT_WIDTH = 140;
 
 const FIELDS = [
-	{ key: 'points', icon: '⋯', label: 'Points', format: v => v },
-	{ key: 'yScale', icon: '↕', label: 'Y Scale', format: (v, d) => v.toFixed(d) },
-	{ key: 'min', icon: '▽', label: 'Min', format: (v, d) => v.toFixed(d) },
-	{ key: 'max', icon: '△', label: 'Max', format: (v, d) => v.toFixed(d) },
-	{ key: 'range', icon: '↔', label: 'Range', format: (v, d) => v.toFixed(d) },
-	{ key: 'lastY', icon: '★', label: 'Last', format: (v, d) => v.toFixed(d) }
+	{ key: 'points', icon: '⋯', label: 'Points', format: v => formatNumber(v, 0) },
+	{ key: 'yScale', icon: '↕', label: 'Y Scale', format: (v, d) => formatNumber(v, d) },
+	{ key: 'min', icon: '▽', label: 'Min', format: (v, d) => formatNumber(v, d) },
+	{ key: 'max', icon: '△', label: 'Max', format: (v, d) => formatNumber(v, d) },
+	{ key: 'range', icon: '↔', label: 'Range', format: (v, d) => formatNumber(v, d) },
+	{ key: 'lastY', icon: '★', label: 'Last', format: (v, d) => formatNumber(v, d) }
 ];
 
 export class InfoCard {

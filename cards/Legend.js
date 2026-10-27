@@ -30,6 +30,7 @@
 
 import { Events } from '../core/Events.js';
 import { CSS } from '../core/CSS.js';
+import { formatNumber } from '../utils/Format.js';
 
 const css = CSS.legend;
 
@@ -69,7 +70,7 @@ export class Legend {
 			return 'Series';
 		});
 
-		this.valueFormat = options.valueFormat || ((v) => v.toFixed(2));
+		this.valueFormat = options.valueFormat || ((v) => formatNumber(v, 2));
 
 		// ─── CALLBACKS ───
 		this.onItemClick = options.onItemClick || null;
