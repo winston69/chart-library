@@ -14,7 +14,8 @@ export const TICK_LENGTH_MINOR = 5;
 export const TICK_LENGTH_MICRO = 3;
 
 const DEFAULT_TIME_TICK_COUNT = 15;
-const DEFAULT_NUMERIC_TICK_COUNT = 4;
+const DEFAULT_MIN_NUMERIC_TICK_COUNT = 4;
+const DEFAULT_MIN_TICK_SPACING = 50;
 
 // Pixel-spacing floors. A minor or micro tier whose on-screen spacing
 // falls below these thresholds is dropped from the render pass.
@@ -111,7 +112,6 @@ export class Axis extends Layer {
 
 		// ─── TICK CONFIG ───
 		this.tickCount = options.tickCount || null;
-		this._minMajorSpacing = options.minMajorSpacing;
 		this.tickStepMode = options.tickStepMode || 'nice';
 		this.tickUnit = options.tickUnit || 'metric';
 		this.timeInterval = options.timeInterval || null;
@@ -183,17 +183,15 @@ export class Axis extends Layer {
 	}
 
 	// ─── Tick density ───
-	_getMinMajorSpacing() {
-		if (this._minMajorSpacing !== undefined) return this._minMajorSpacing;
-		return this.fontSize * 1.5;
-	}
-
 	_computeMaxTicks() {
 		const pixelLength = this._getPixelLength();
-		const minSpacing = this._getMinMajorSpacing();
-		if (!isFinite(pixelLength) || pixelLength <= 0) return Infinity;
-		if (!isFinite(minSpacing) || minSpacing <= 0) return Infinity;
-		return Math.max(2, Math.floor(pixelLength / minSpacing));
+		if (!isFinite(pixelLength) || pixelLength <= 0) {
+			return DEFAULT_MIN_NUMERIC_TICK_COUNT;
+		}
+		return Math.max(
+			DEFAULT_MIN_NUMERIC_TICK_COUNT,
+			Math.floor(pixelLength / DEFAULT_MIN_TICK_SPACING)
+		);
 	}
 
 	_getPixelLength() {
@@ -422,7 +420,7 @@ export class Axis extends Layer {
 
 		const preferredTicks = this.tickCount
 			? this.tickCount
-			: (isTime ? DEFAULT_TIME_TICK_COUNT : DEFAULT_NUMERIC_TICK_COUNT);
+			: (isTime ? DEFAULT_TIME_TICK_COUNT : this._computeMaxTicks());
 
 		const maxTicks = this._computeMaxTicks();
 		const effectiveTickCount = Math.max(2, Math.min(preferredTicks, maxTicks));
