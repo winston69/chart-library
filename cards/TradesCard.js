@@ -55,7 +55,7 @@ export class TradesCard {
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');
 		const headerRow = document.createElement('tr');
-		for (const label of ['Time', 'Price', 'Value']) {
+		for (const label of ['Time', 'Price', 'Value', 'Sig']) {
 			const header = document.createElement('th');
 			header.scope = 'col';
 			header.textContent = label;
@@ -77,7 +77,13 @@ export class TradesCard {
 	_createRow(trade) {
 		const row = document.createElement('tr');
 		row.className = trade.isBuyerMaker ? 'trades-sell' : 'trades-buy';
-		for (const value of [trade.time, trade.price, trade.value]) {
+		const average = trade.isBuyerMaker ? trade.aveSell : trade.aveBuy;
+		const difference = trade.qty - average;
+		const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
+		const signal = Math.abs(difference) <= tolerance
+			? '➖'
+			: difference > 0 ? '🔥' : '💧';
+		for (const value of [trade.time, trade.price, trade.value, signal]) {
 			const cell = document.createElement('td');
 			cell.textContent = value;
 			row.appendChild(cell);

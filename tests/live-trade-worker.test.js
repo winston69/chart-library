@@ -15,12 +15,20 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000
 	}));
 	const lastRestTradeTime = restTrades.at(-1).time;
-	const websocketTrade = {
-		price: Number(restTrades[restTrades.length - 1].price) + 1,
-		qty: 1,
-		time: lastRestTradeTime + Math.min(30000, 59999 - (lastRestTradeTime % 60000)),
-		isBuyerMaker: true
-	};
+	const websocketTrades = Array.from({ length: 51 }, (_, index) => ({
+		price: Number(restTrades.at(-1).price) + index + 1,
+		qty: index + 1,
+		time: lastRestTradeTime + index + 1,
+		isBuyerMaker: false
+	}));
+	websocketTrades.push(
+		{
+			price: Number(restTrades.at(-1).price) + 52,
+			qty: 8,
+			time: lastRestTradeTime + 52,
+			isBuyerMaker: true
+		}
+	);
 
 	globalThis.self = {
 		location: { origin: 'http://localhost:8787' },
@@ -48,24 +56,17 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 			});
 		}
 
-		socket.onmessage({
-			data: JSON.stringify({
+		for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
+			socket.onmessage({
+				data: JSON.stringify({
 				e: 'trade',
 				p: String(websocketTrade.price),
 				q: String(websocketTrade.qty),
 				T: websocketTrade.time,
 				m: websocketTrade.isBuyerMaker
+				})
 			})
-		});
-		socket.onmessage({
-			data: JSON.stringify({
-				e: 'trade',
-				p: String(websocketTrade.price),
-				q: String(websocketTrade.qty),
-				T: websocketTrade.time,
-				m: websocketTrade.isBuyerMaker
-			})
-		});
+		}
 		return Response.json(restTrades);
 	};
 
@@ -105,15 +106,15 @@ test('rebuckets interleaved WebSocket and REST trades chronologically', async t 
 		rows.map(row => row.openTime),
 		rows.map(row => row.openTime).toSorted((a, b) => a - b)
 	);
-	assert.equal(rows.at(-1).volume, 2, 'duplicate WebSocket trade should be skipped');
 	assert.deepEqual(
-		messages.filter(message => message.type === 'trade').map(message => message.data),
-		[{
-			price: websocketTrade.price,
-			qty: websocketTrade.qty,
-			time: websocketTrade.time,
-			isBuyerMaker: websocketTrade.isBuyerMaker
-		}],
-		'only the unique WebSocket trade should be posted as a trade message'
+		[
+			messages.filter(message => message.type === 'trade').length,
+			messages.find(message => message.type === 'trade').data.aveBuy,
+			messages.filter(message => message.type === 'trade')[49].data.aveBuy,
+			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
+			messages.filter(message => message.type === 'trade').at(-1).data.aveSell
+		],
+		[52, 1, 25.5, 26.5, 8],
+		'trade averages should use only the last 50 unique trades for each side'
 	);
 });

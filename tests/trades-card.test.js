@@ -60,25 +60,47 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		time: '12:00:00',
 		price: '100.00',
 		value: '100',
-		isBuyerMaker: false
+		isBuyerMaker: false,
+		qty: 5,
+		aveBuy: 3,
+		aveSell: 0
 	});
 	card.addTrade({
 		time: '12:00:01',
 		price: '101.00',
 		value: '101',
-		isBuyerMaker: true
+		isBuyerMaker: true,
+		qty: 2,
+		aveBuy: 3,
+		aveSell: 4
 	});
 
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
 	assert.equal(card._elements.tbody.children[0].className, 'trades-sell');
+	assert.equal(card._elements.tbody.children[0].children[3].textContent, '💧');
 	assert.equal(card._elements.tbody.children[1].className, 'trades-buy');
+	assert.equal(card._elements.tbody.children[1].children[3].textContent, '🔥');
+
+	card.addTrade({
+		time: '12:00:02',
+		price: '102.00',
+		value: '102',
+		isBuyerMaker: false,
+		qty: 3,
+		aveBuy: 3,
+		aveSell: 4
+	});
+	assert.equal(card._elements.tbody.children[0].children[3].textContent, '➖');
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({
 			time: `12:01:${String(index).padStart(2, '0')}`,
 			price: String(index),
 			value: String(index),
-			isBuyerMaker: false
+			isBuyerMaker: false,
+			qty: 1,
+			aveBuy: 1,
+			aveSell: 1
 		});
 	}
 

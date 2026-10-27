@@ -127,6 +127,9 @@ let lastPrice = null;
 // Bounded by `maxData` in time and MAX_TRADES in count.
 const tradeBuffer = [];
 const MAX_TRADES = 200000;
+const AVERAGE_TRADE_COUNT = 50;
+const buyAverage = { quantities: [], total: 0, value: 0 };
+const sellAverage = { quantities: [], total: 0, value: 0 };
 
 // ─── Outbound tick throttle ───
 let lastTickAt = 0;
@@ -144,6 +147,23 @@ function postState() {
 
 function postError(message) {
 	self.postMessage({ type: 'error', message });
+}
+
+function resetTradeAverages() {
+	for (const average of [buyAverage, sellAverage]) {
+		average.quantities.length = 0;
+		average.total = 0;
+		average.value = 0;
+	}
+}
+
+function updateAverage(average, quantity) {
+	average.quantities.push(quantity);
+	average.total += quantity;
+	if (average.quantities.length > AVERAGE_TRADE_COUNT) {
+		average.total -= average.quantities.shift();
+	}
+	average.value = average.total / average.quantities.length;
 }
 
 function countDecimals(stepSize) {
@@ -336,17 +356,27 @@ function connect() {
 		const price = Number(payload.p);
 		const quantity = Number(payload.q);
 		const tradeTime = Number(payload.T);
-		const isBuyerMaker = payload.m;
+		const trade = {
+			price,
+			qty: quantity,
+			time: tradeTime,
+			isBuyerMaker: payload.m
+		};
 
-		if (!isFinite(price) || !isFinite(quantity) || !isFinite(tradeTime)
-			|| typeof isBuyerMaker !== 'boolean') return;
+		if (!isFinite(trade.price) || !isFinite(trade.qty) || !isFinite(trade.time)
+			|| typeof trade.isBuyerMaker !== 'boolean') return;
 		const lastTrade = tradeBuffer[tradeBuffer.length - 1];
-		if (lastTrade && lastTrade.time === tradeTime && lastTrade.price === price) return;
+		if (lastTrade && lastTrade.time === trade.time && lastTrade.price === trade.price) return;
 
-		processTrade({ price, qty: quantity, time: tradeTime });
+		processTrade(trade);
+		updateAverage(trade.isBuyerMaker ? sellAverage : buyAverage, trade.qty);
 		self.postMessage({
 			type: 'trade',
-			data: { price, qty: quantity, time: tradeTime, isBuyerMaker }
+			data: {
+				...trade,
+				aveBuy: buyAverage.value,
+				aveSell: sellAverage.value
+			}
 		});
 	};
 
@@ -438,6 +468,7 @@ function handleConfig(msg) {
 		emitting = false;
 		disconnectSocket();
 		tradeBuffer.length = 0;
+		resetTradeAverages();
 		currentBucket = null;
 		bucketStartSnap = null;
 		lastPrice = null;
@@ -505,6 +536,7 @@ function disconnect() {
 	emitting = false;
 	disconnectSocket();
 	tradeBuffer.length = 0;
+	resetTradeAverages();
 	currentBucket = null;
 	bucketStartSnap = null;
 	lastPrice = null;

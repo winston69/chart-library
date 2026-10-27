@@ -626,7 +626,8 @@ function handleLiveMessage(evt, source) {
 			const trade = msg.data;
 			if (!trade || !Number.isFinite(trade.time)
 				|| !Number.isFinite(trade.price) || !Number.isFinite(trade.qty)
-				|| typeof trade.isBuyerMaker !== 'boolean') {
+				|| typeof trade.isBuyerMaker !== 'boolean'
+				|| !Number.isFinite(trade.aveBuy) || !Number.isFinite(trade.aveSell)) {
 				console.error('[live feed] received malformed trade message', trade);
 				break;
 			}
@@ -634,7 +635,10 @@ function handleLiveMessage(evt, source) {
 				time: tradeTimeFormatter.format(trade.time),
 				price: formatNumber(trade.price, SYMBOL_DECIMALS),
 				value: formatCompact(trade.price * trade.qty),
-				isBuyerMaker: trade.isBuyerMaker
+				isBuyerMaker: trade.isBuyerMaker,
+				qty: trade.qty,
+				aveBuy: trade.aveBuy,
+				aveSell: trade.aveSell
 			});
 			break;
 		}
