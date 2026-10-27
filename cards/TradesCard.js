@@ -76,7 +76,7 @@ export class TradesCard {
 
 	_createRow(trade) {
 		const row = document.createElement('tr');
-		row.className = trade.isBuyerMaker ? 'trades-sell' : 'trades-buy';
+		row.classList.add(trade.isBuyerMaker === false ? 'buy' : 'sell');
 		const average = trade.isBuyerMaker ? trade.aveSell : trade.aveBuy;
 		const difference = trade.qty - average;
 		const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
