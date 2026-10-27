@@ -198,13 +198,20 @@ export class Axis extends Layer {
 	}
 
 	_isWatermarkStyle() {
-		return (this.orientation === 'left' || this.orientation === 'right') &&
-			this.labelStyle === 'watermark';
+		return this.labelStyle === 'watermark';
 	}
 
 	_getWatermarkMarginSize(maxLabelWidth = 0) {
 		return this._getMajorTickLength() + this.tickPadding + maxLabelWidth +
 			this.tickPadding + 2;
+	}
+
+	_getHorizontalAxisMarginSize() {
+		const maxLabelHeight = this.fontSize + 2;
+		const axisLabelText = this._isWatermarkStyle() ? this.axisLabel : this.label;
+		const axisLabelSize = (this.showLabel && axisLabelText) ? (this.fontSize + 2) : 0;
+		return this._getMajorTickLength() + this.tickPadding + maxLabelHeight +
+			this.tickPadding + axisLabelSize + 2;
 	}
 
 	_getPixelLength() {
@@ -799,8 +806,6 @@ export class Axis extends Layer {
 		const fontSize = this.fontSize;
 
 		let maxLabelWidth = 0;
-		const maxLabelHeight = fontSize + 2;
-
 		for (let i = 0, len = ticks.length; i < len; i++) {
 			const labelText = this._formatTick(ticks[i], decimals);
 			const estimatedWidth = labelText.length * (fontSize * 0.6) + 2;
@@ -815,8 +820,7 @@ export class Axis extends Layer {
 		let totalSize;
 		const orientation = this.orientation;
 		if (orientation === 'bottom' || orientation === 'top') {
-			totalSize = majorTickLength + tickPadding + maxLabelHeight +
-				tickPadding + axisLabelSize + 2;
+			totalSize = this._getHorizontalAxisMarginSize();
 		} else if (this._isWatermarkStyle()) {
 			totalSize = this._getWatermarkMarginSize(maxLabelWidth);
 		} else {

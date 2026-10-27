@@ -236,6 +236,8 @@ export class XAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
+		this._renderWatermark(left, right, position, tickDirection);
+
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
 			const totalOffset = majorTickLength + this.fontSize + 6 + this.labelOffset;
@@ -396,12 +398,36 @@ export class XAxis extends Axis {
 			this._hidePoolFrom(el.microTickLines, 0);
 		}
 
+		this._renderWatermark(left, right, position, tickDirection);
+
 		const labelEl = el.label;
 		if (labelEl && this.showLabel && this.label) {
 			const totalOffset = majorTickLength + this.fontSize + 6 + this.labelOffset;
 			labelEl.setAttribute('x', (left + right) / 2);
 			labelEl.setAttribute('y', position + totalOffset * tickDirection);
 		}
+	}
+
+	_renderWatermark(left, right, position, tickDirection) {
+		const watermark = this._elements.watermark;
+		if (!watermark || !this._isWatermarkStyle()) return;
+
+		const text = this.axisLabel;
+		if (!text) {
+			watermark.setAttribute('visibility', 'hidden');
+			return;
+		}
+
+		const x = (left + right) / 2;
+		const axisHeight = this._getHorizontalAxisMarginSize();
+		const y = position + tickDirection * axisHeight / 2;
+
+		if (watermark.textContent !== text) watermark.textContent = text;
+		watermark.setAttribute('visibility', 'visible');
+		watermark.setAttribute('x', x);
+		watermark.setAttribute('y', y);
+		watermark.setAttribute('font-size', axisHeight / 3);
+		watermark.removeAttribute('transform');
 	}
 }
 

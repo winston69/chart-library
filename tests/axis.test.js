@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Axis } from '../axes/Axis.js';
+import { XAxis } from '../axes/XAxis.js';
 import { YAxis } from '../axes/YAxis.js';
 import { formatCompact, formatNumber } from '../utils/Format.js';
 
@@ -62,6 +63,34 @@ test('watermark renders the axis name instead of a tick value', () => {
 		watermark.attributes.transform,
 		`rotate(-90, ${watermark.attributes.x}, ${watermark.attributes.y})`
 	);
+});
+
+test('X-axis watermark is horizontal, centered, and one third of the axis height', () => {
+	const watermark = {
+		attributes: {},
+		textContent: '',
+		setAttribute(name, value) {
+			this.attributes[name] = value;
+		},
+		removeAttribute(name) {
+			delete this.attributes[name];
+		}
+	};
+	const axis = new XAxis({
+		fontSize: 12,
+		label: 'Time',
+		scale: { range: [10, 510] }
+	});
+	axis._elements.watermark = watermark;
+
+	axis._renderWatermark(10, 510, 400, 1);
+
+	const height = axis._getHorizontalAxisMarginSize();
+	assert.equal(watermark.textContent, 'Time');
+	assert.equal(watermark.attributes.x, 260);
+	assert.equal(watermark.attributes.y, 400 + height / 2);
+	assert.equal(watermark.attributes['font-size'], height / 3);
+	assert.equal(watermark.attributes.transform, undefined);
 });
 
 test('default numeric tick target increases with band height', () => {
