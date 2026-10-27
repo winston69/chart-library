@@ -24,13 +24,14 @@ test('watermark Y-axis requests a narrower margin than standard labels', () => {
 		fontSize: 12,
 		showLabel: false
 	};
-	const standardAxis = new YAxis(options);
-	assert.equal(standardAxis.labelStyle, 'standard');
-	const standard = standardAxis.getMarginRequest().right;
-	const watermark = new YAxis({
+	const watermarkAxis = new YAxis(options);
+	assert.equal(watermarkAxis.labelStyle, 'watermark');
+	const standardAxis = new YAxis({
 		...options,
-		labelStyle: 'watermark'
-	}).getMarginRequest().right;
+		labelStyle: 'standard'
+	});
+	const standard = standardAxis.getMarginRequest().right;
+	const watermark = watermarkAxis.getMarginRequest().right;
 
 	assert.ok(watermark < standard);
 });

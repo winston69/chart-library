@@ -91,7 +91,7 @@ export class Axis extends Layer {
 		this.showTickLabels = options.showTickLabels !== undefined ? options.showTickLabels : true;
 		this.tickLabelAlign = options.tickLabelAlign || 'centered';
 		this.tickLabelPadding = options.tickLabelPadding !== undefined ? options.tickLabelPadding : 1;
-		this.labelStyle = options.labelStyle || 'standard';
+		this.labelStyle = options.labelStyle || 'watermark';
 
 		this.label = options.label || '';
 		this.labelOffset = options.labelOffset || 0;
