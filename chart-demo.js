@@ -2,7 +2,7 @@
 // chart-demo.js
 //
 // Demo wiring. Bands are resolved from indicator declarations;
-// only price and volume are present until standalone indicators are toggled on.
+// Bollinger, MACD, and RSI are enabled by default.
 //
 // Band stack (bottom → top):
 //   volume  — Volume indicator (BarChart)
@@ -337,6 +337,8 @@ const indicatorFactories = {
 	})
 };
 
+const DEFAULT_INDICATORS = ['bollinger', 'macd', 'rsi'];
+
 function activeHandles() {
 	return [priceChart, volume, ...Object.values(indicatorInstances)];
 }
@@ -399,6 +401,8 @@ const legendCard = new Legend({
 });
 cardStrip.addCard(legendCard);
 
+for (const name of DEFAULT_INDICATORS) setIndicatorEnabled(name, true);
+
 const ohlcCard = new OHLCCard({
 	id: 'main-ohlc',
 	plane,
@@ -442,7 +446,9 @@ function applySeed(rows) {
 	for (const h of activeHandles()) {
 		if (h !== priceChart) h.setData(latestRows);
 	}
+	plane.resetZoom('both');
 	plane.update();
+	plane.autoFitVisibleY();
 }
 
 function applyTick(row) {
@@ -883,9 +889,9 @@ const indicatorsChecklist = new Checklist({
 	variant: 'secondary',
 	tooltip: 'Toggle chart indicators',
 	options: [
-		{ value: 'bollinger', label: 'Bollinger', checked: false },
-		{ value: 'macd', label: 'MACD', checked: false },
-		{ value: 'rsi', label: 'RSI', checked: false },
+		{ value: 'bollinger', label: 'Bollinger', checked: DEFAULT_INDICATORS.includes('bollinger') },
+		{ value: 'macd', label: 'MACD', checked: DEFAULT_INDICATORS.includes('macd') },
+		{ value: 'rsi', label: 'RSI', checked: DEFAULT_INDICATORS.includes('rsi') },
 		{ value: 'sma', label: 'SMA', checked: false },
 		{ value: 'vwma', label: 'VWMA', checked: false }
 	],
