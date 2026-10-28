@@ -25,8 +25,9 @@
 	/* Row flow: left-to-right, wrapping bottom-up. */
 	display: flex;
 	flex-wrap: wrap-reverse;
-	align-content: flex-start;
-	align-items: stretch;
+	/* wrap-reverse makes flex-end the physical top of the strip. */
+	align-content: flex-end;
+	align-items: flex-start;
 	/* was flex-end; ensures fixed-height cards stay at their row */
 	justify-content: flex-start;
 
