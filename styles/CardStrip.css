@@ -22,13 +22,11 @@
 	overflow: hidden;
 	pointer-events: none;
 
-	/* Row flow: left-to-right, wrapping bottom-up. */
+	/* Row flow: left-to-right, wrapping top-down. */
 	display: flex;
-	flex-wrap: wrap-reverse;
-	/* wrap-reverse makes flex-end the physical top of the strip. */
-	align-content: flex-end;
+	flex-wrap: wrap;
+	align-content: flex-start;
 	align-items: flex-start;
-	/* was flex-end; ensures fixed-height cards stay at their row */
 	justify-content: flex-start;
 
 	row-gap: var(--cs-padding);
