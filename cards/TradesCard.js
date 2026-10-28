@@ -1,10 +1,8 @@
-const DEFAULT_WIDTH = 220;
 const MAX_TRADES = 50;
 
 export class TradesCard {
 	constructor(options = {}) {
 		this.id = options.id || `trades-${Math.random().toString(36).slice(2, 8)}`;
-		this.width = options.width || DEFAULT_WIDTH;
 		this.visible = options.visible !== false;
 		this._elements = {
 			root: null,

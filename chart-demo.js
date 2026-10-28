@@ -71,7 +71,7 @@ import { Checklist } from './ui/Checklist.js';
 import { ToolBar } from './ui/ToolBar.js';
 import { ToolTip } from './ui/ToolTip.js';
 import { Loader } from './ui/Loader.js';
-import { formatNumber, formatCompact } from './utils/Format.js';
+import { formatNumber } from './utils/Format.js';
 
 // ─── CONSTANTS ───
 
@@ -435,7 +435,6 @@ cardStrip.addCard(infoCard);
 
 const tradesCard = new TradesCard({
 	id: 'main-trades',
-	width: 220,
 	visible: currentSource === 'live'
 });
 cardStrip.addCard(tradesCard);
@@ -634,7 +633,7 @@ function handleLiveMessage(evt, source) {
 			tradesCard.addTrade({
 				time: tradeTimeFormatter.format(trade.time),
 				price: formatNumber(trade.price, SYMBOL_DECIMALS),
-				value: formatCompact(trade.price * trade.qty),
+				value: formatNumber(trade.price * trade.qty, SYMBOL_DECIMALS),
 				isBuyerMaker: trade.isBuyerMaker,
 				qty: trade.qty,
 				aveBuy: trade.aveBuy,
