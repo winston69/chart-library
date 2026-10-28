@@ -1,6 +1,7 @@
 /* OHLCCard.css */
 
 .ohlc-card {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	/* height: 100%; */
@@ -10,32 +11,14 @@
 	font-size: 8px;
 }
 
-.ohlc-title {
-	display: flex;
-	justify-content: space-between;
-	gap: 2px;
-	flex: 0 0 auto;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 0.9);
-	padding-bottom: 3px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-	margin-bottom: 3px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.ohlc-title-text {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
 .ohlc-time {
-	flex: 0 0 auto;
+	position: absolute;
+	top: 3px;
+	right: 4px;
 	font-size: 7px;
 	font-weight: normal;
 	font-variant-numeric: tabular-nums;
+	background: rgba(20, 20, 20, 0.9);
 }
 
 .ohlc-rows {

@@ -26,7 +26,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-content: flex-start;
-	align-items: flex-start;
+	align-items: stretch;
 	justify-content: flex-start;
 
 	row-gap: var(--cs-padding);
@@ -37,7 +37,7 @@
 	box-sizing: border-box;
 	flex: 0 0 auto;
 	width: var(--cs-card-width);
-	height: var(--cs-row-height);
+	min-height: var(--cs-row-height);
 	max-height: var(--cs-row-height);
 	padding: var(--cs-padding);
 
@@ -55,6 +55,25 @@
 	overflow: hidden;
 	pointer-events: auto;
 	transition: opacity 0.15s ease;
+}
+
+.card-title {
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	min-height: 18px;
+	margin: 0;
+	padding: 3px 4px;
+	background: rgba(255, 255, 255, 0.025);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.9);
+	font-family: monospace;
+	font-size: 8px;
+	font-weight: bold;
+	line-height: 11px;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .cs-card:hover {

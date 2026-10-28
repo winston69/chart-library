@@ -80,6 +80,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 4
 	});
 
+	assert.equal(card._elements.root.children[0].className, 'card-title');
+	assert.equal(card._elements.root.children[0].textContent, 'Live Trades');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
 	assert.equal(card._elements.tbody.children[0].classList.contains('sell'), true);
 	assert.equal(card._elements.tbody.children[0].children[3].textContent, '💧');

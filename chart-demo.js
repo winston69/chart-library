@@ -63,6 +63,7 @@ import { Legend } from './cards/Legend.js';
 import { OHLCCard } from './cards/OHLCCard.js';
 import { InfoCard } from './cards/InfoCard.js';
 import { TradesCard } from './cards/TradesCard.js';
+import { AlertCard } from './cards/AlertCard.js';
 
 // UI
 import { Button } from './ui/Button.js';
@@ -328,12 +329,21 @@ plane.addLayer(interaction);
 const indicatorInstances = Object.create(null);
 let latestRows = priceChart.data;
 
+const alertCard = new AlertCard({
+	id: 'main-alerts',
+	visible: true
+});
+
 const indicatorFactories = {
 	bollinger: () => new Bollinger({
 		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
 	}),
 	macd: () => new MACD({
-		plane, decimals: SYMBOL_DECIMALS + 4, xAccessor: xAcc, trimTail: true
+		plane,
+		decimals: SYMBOL_DECIMALS + 4,
+		xAccessor: xAcc,
+		trimTail: true,
+		onRowUpdate: event => alertCard.addAlert(event)
 	}),
 	rsi: () => new RSI({
 		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true
@@ -397,7 +407,7 @@ function setIndicatorEnabled(name, enabled) {
 
 const legendCard = new Legend({
 	id: 'main-legend',
-	title: '🎯 Price Update',
+	title: 'Legend',
 	width: 140,
 	plane,
 	selection: chartSelection,
@@ -428,7 +438,7 @@ const infoCard = new InfoCard({
 	id: 'main-info',
 	plane,
 	layer: priceChart,
-	title: '📊 Metrics',
+	title: 'Metrics',
 	width: 140
 });
 cardStrip.addCard(infoCard);
@@ -438,6 +448,7 @@ const tradesCard = new TradesCard({
 	visible: currentSource === 'live'
 });
 cardStrip.addCard(tradesCard);
+cardStrip.addCard(alertCard);
 
 crosshair.onMove = (payload) => {
 	if (!payload) {

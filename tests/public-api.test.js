@@ -11,7 +11,8 @@ test('the public entry point exports rendering indicators', () => {
 		'SMA',
 		'VWMA',
 		'Volume',
-		'TradesCard'
+		'TradesCard',
+		'AlertCard'
 	]) {
 		assert.equal(typeof api[name], 'function', `${name} should be exported`);
 	}

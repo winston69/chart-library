@@ -31,6 +31,31 @@ import { BaseIndicator } from './BaseIndicator.js';
 const DEFAULT_HEIGHT = 0.25;
 const DEFAULT_DECIMALS = 7;
 
+export function detectMACDCross(prevRow, row) {
+	if (!prevRow || !row) return null;
+	const previousMacd = prevRow.macd;
+	const previousSignal = prevRow.macdSignal;
+	const macd = row.macd;
+	const signal = row.macdSignal;
+	if (![previousMacd, previousSignal, macd, signal].every(Number.isFinite)) return null;
+
+	if (previousMacd <= previousSignal && macd > signal) {
+		return {
+			type: 'MACD_CROSS_BULLISH',
+			time: row.openTime,
+			message: 'MACD crossed above Signal'
+		};
+	}
+	if (previousMacd >= previousSignal && macd < signal) {
+		return {
+			type: 'MACD_CROSS_BEARISH',
+			time: row.openTime,
+			message: 'MACD crossed below Signal'
+		};
+	}
+	return null;
+}
+
 export class MACD extends BaseIndicator {
 	constructor(options = {}) {
 		super({
@@ -57,8 +82,11 @@ export class MACD extends BaseIndicator {
 			showMacdLine = true,
 			showSignalLine = true,
 			trimTail = false,
-			idPrefix = 'macd'
+			idPrefix = 'macd',
+			onRowUpdate = null
 		} = options;
+
+		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
 
 		// ─── Histogram (behind) ───
 		if (showHistogram) {
@@ -118,6 +146,18 @@ export class MACD extends BaseIndicator {
 		}
 
 		this.build();
+	}
+
+	appendOrUpdate(row, keyFn) {
+		const data = this.primaryLayer && this.primaryLayer.data;
+		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+
+		super.appendOrUpdate(row, keyFn);
+
+		if (prevRow && this.onRowUpdate) {
+			const event = detectMACDCross(prevRow, row);
+			if (event) this.onRowUpdate(event);
+		}
 	}
 }
 

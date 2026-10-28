@@ -1,3 +1,5 @@
+import { CSS } from '../core/CSS.js';
+
 const MAX_TRADES = 50;
 
 export class TradesCard {
@@ -49,6 +51,11 @@ export class TradesCard {
 	_createContent() {
 		const root = document.createElement('div');
 		root.className = 'trades-card';
+
+		const title = document.createElement('div');
+		title.className = CSS.cardTitle;
+		title.textContent = 'Live Trades';
+		root.appendChild(title);
 
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');

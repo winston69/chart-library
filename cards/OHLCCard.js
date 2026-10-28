@@ -12,6 +12,7 @@
 //   id, width, render(container), update(), destroy()
 // ──────────────────────────────────────────────────────────────
 
+import { CSS } from '../core/CSS.js';
 import { formatNumber } from '../utils/Format.js';
 
 const DEFAULT_WIDTH = 140;
@@ -45,7 +46,7 @@ export class OHLCCard {
 		this.crosshair = options.crosshair || null;  // reserved for future direct subscription
 
 		// ─── DISPLAY ───
-		this.title = options.title || (this.layer && (this.layer.label || this.layer.name)) || 'OHLC';
+		this.title = options.title || 'Price';
 		this.width = options.width || DEFAULT_WIDTH;
 		this.decimals = options.decimals !== undefined
 			? options.decimals
@@ -126,17 +127,14 @@ export class OHLCCard {
 		root.className = 'ohlc-card';
 
 		const titleEl = document.createElement('div');
-		titleEl.className = 'ohlc-title';
-		const titleTextEl = document.createElement('span');
-		titleTextEl.className = 'ohlc-title-text';
-		titleTextEl.textContent = this.title;
-		titleEl.appendChild(titleTextEl);
+		titleEl.className = CSS.cardTitle;
+		titleEl.textContent = 'Price';
+		root.appendChild(titleEl);
+		this._elements.titleEl = titleEl;
 
 		const timestampEl = document.createElement('span');
 		timestampEl.className = 'ohlc-time';
-		titleEl.appendChild(timestampEl);
-		root.appendChild(titleEl);
-		this._elements.titleEl = titleEl;
+		root.appendChild(timestampEl);
 		this._elements.timestampEl = timestampEl;
 
 		const rowsEl = document.createElement('div');

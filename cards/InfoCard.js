@@ -2,6 +2,7 @@
 // InfoCard.js
 // ──────────────────────────────────────────────────────────────
 
+import { CSS } from '../core/CSS.js';
 import { formatNumber } from '../utils/Format.js';
 
 const DEFAULT_WIDTH = 140;
@@ -21,7 +22,7 @@ export class InfoCard {
 		this.plane = options.plane || null;
 		this.layer = options.layer || null;
 
-		this.title = options.title || null;
+		this.title = options.title || 'Metrics';
 		this.width = options.width || DEFAULT_WIDTH;
 
 		this.items = Object.create(null);
@@ -97,12 +98,10 @@ export class InfoCard {
 		const root = document.createElement('div');
 		root.className = 'info-card';
 
-		if (this.title) {
-			const titleEl = document.createElement('div');
-			titleEl.className = 'info-title';
-			titleEl.textContent = this.title;
-			root.appendChild(titleEl);
-		}
+		const titleEl = document.createElement('div');
+		titleEl.className = CSS.cardTitle;
+		titleEl.textContent = 'Metrics';
+		root.appendChild(titleEl);
 
 		const gridEl = document.createElement('div');
 		gridEl.className = 'info-grid';

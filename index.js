@@ -53,6 +53,7 @@ export { Legend } from './cards/Legend.js';
 export { OHLCCard } from './cards/OHLCCard.js';
 export { InfoCard } from './cards/InfoCard.js';
 export { TradesCard } from './cards/TradesCard.js';
+export { AlertCard } from './cards/AlertCard.js';
 
 // UI
 export { Button } from './ui/Button.js';

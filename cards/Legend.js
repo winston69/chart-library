@@ -43,7 +43,7 @@ export class Legend {
 
 		// ─── CONTENT ───
 		this.items = options.items || [];
-		this.title = options.title || null;
+		this.title = options.title || 'Legend';
 		this.autoDetect = options.autoDetect !== undefined ? options.autoDetect : true;
 
 		// ─── CARD GEOMETRY ───
@@ -204,13 +204,11 @@ export class Legend {
 		const root = document.createElement('div');
 		root.className = css.card;
 
-		if (this.title) {
-			const titleEl = document.createElement('div');
-			titleEl.className = css.title;
-			titleEl.textContent = this.title;
-			root.appendChild(titleEl);
-			this._elements.titleEl = titleEl;
-		}
+		const titleEl = document.createElement('div');
+		titleEl.className = CSS.cardTitle;
+		titleEl.textContent = 'Legend';
+		root.appendChild(titleEl);
+		this._elements.titleEl = titleEl;
 
 		const itemsEl = document.createElement('div');
 		itemsEl.className = css.items;

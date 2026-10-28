@@ -216,6 +216,8 @@ export const CSS = {
 		card: 'cs-card'
 	},
 
+	cardTitle: 'card-title',
+
 	legend: {
 		card: 'leg-card',
 		title: 'leg-title',
@@ -242,6 +244,17 @@ export const CSS = {
 		cell: 'info-cell',
 		icon: 'info-icon',
 		value: 'info-value'
+	},
+
+	alertCard: {
+		card: 'alert-card',
+		list: 'alert-list',
+		item: 'alert-item',
+		bullish: 'bullish',
+		bearish: 'bearish',
+		pulse: 'alert-pulse',
+		time: 'alert-time',
+		message: 'alert-message'
 	},
 
 	// ─── Selection ───

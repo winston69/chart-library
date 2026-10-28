@@ -10,15 +10,6 @@
 	font-size: 8px;
 }
 
-.leg-title {
-	flex: 0 0 auto;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 0.9);
-	padding-bottom: 3px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-	margin-bottom: 3px;
-}
-
 .leg-items {
 	flex: 1 1 auto;
 	min-height: 0;
