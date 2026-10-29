@@ -103,9 +103,12 @@ export class InfoCard {
 		titleEl.textContent = 'Metrics';
 		root.appendChild(titleEl);
 
+		const bodyEl = document.createElement('div');
+		bodyEl.className = CSS.cardBody;
 		const gridEl = document.createElement('div');
 		gridEl.className = 'info-grid';
-		root.appendChild(gridEl);
+		bodyEl.appendChild(gridEl);
+		root.appendChild(bodyEl);
 
 		for (let i = 0; i < FIELDS.length; i++) {
 			const f = FIELDS[i];

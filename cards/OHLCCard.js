@@ -128,18 +128,24 @@ export class OHLCCard {
 
 		const titleEl = document.createElement('div');
 		titleEl.className = CSS.cardTitle;
-		titleEl.textContent = 'Price';
+		const titleLabelEl = document.createElement('span');
+		titleLabelEl.className = CSS.cardTitleLabel;
+		titleLabelEl.textContent = this.title;
+		titleEl.appendChild(titleLabelEl);
 		root.appendChild(titleEl);
 		this._elements.titleEl = titleEl;
 
 		const timestampEl = document.createElement('span');
 		timestampEl.className = 'ohlc-time';
-		root.appendChild(timestampEl);
+		titleEl.appendChild(timestampEl);
 		this._elements.timestampEl = timestampEl;
 
+		const bodyEl = document.createElement('div');
+		bodyEl.className = CSS.cardBody;
 		const rowsEl = document.createElement('div');
 		rowsEl.className = 'ohlc-rows';
-		root.appendChild(rowsEl);
+		bodyEl.appendChild(rowsEl);
+		root.appendChild(bodyEl);
 		this._elements.rowsEl = rowsEl;
 
 		for (const key of FIELDS) {

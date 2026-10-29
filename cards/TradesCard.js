@@ -57,6 +57,8 @@ export class TradesCard {
 		title.textContent = 'Live Trades';
 		root.appendChild(title);
 
+		const body = document.createElement('div');
+		body.className = CSS.cardBody;
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');
 		const headerRow = document.createElement('tr');
@@ -71,7 +73,8 @@ export class TradesCard {
 
 		const tbody = document.createElement('tbody');
 		table.appendChild(tbody);
-		root.appendChild(table);
+		body.appendChild(table);
+		root.appendChild(body);
 
 		this._elements = { root, tbody };
 		for (let i = this._trades.length - 1; i >= 0; i--) {

@@ -3,7 +3,6 @@
 .leg-card {
 	display: flex;
 	flex-direction: column;
-	/* height: 100%; */
 	overflow: hidden;
 	color: #e0e0e0;
 	font-family: monospace;
@@ -11,27 +10,8 @@
 }
 
 .leg-items {
-	flex: 1 1 auto;
-	min-height: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
-}
-
-.leg-items::-webkit-scrollbar {
-	width: 4px;
-}
-
-.leg-items::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.leg-items::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 2px;
-}
-
-.leg-items::-webkit-scrollbar-thumb:hover {
-	background: rgba(255, 255, 255, 0.35);
+	display: flex;
+	flex-direction: column;
 }
 
 .leg-item {

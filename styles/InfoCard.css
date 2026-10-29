@@ -3,7 +3,6 @@
 .info-card {
 	display: flex;
 	flex-direction: column;
-	/* height: 100%; */
 	overflow: hidden;
 	color: #e0e0e0;
 	font-family: monospace;
@@ -11,11 +10,6 @@
 }
 
 .info-grid {
-	flex: 1 1 auto;
-	min-height: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
-
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 2px 8px;
@@ -40,22 +34,4 @@
 	flex: 1 1 auto;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
-}
-
-/* Scrollbar only shows when content overflows. */
-.info-grid::-webkit-scrollbar {
-	width: 4px;
-}
-
-.info-grid::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.info-grid::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 2px;
-}
-
-.info-grid::-webkit-scrollbar-thumb:hover {
-	background: rgba(255, 255, 255, 0.35);
 }

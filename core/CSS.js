@@ -217,6 +217,8 @@ export const CSS = {
 	},
 
 	cardTitle: 'card-title',
+	cardTitleLabel: 'card-title-label',
+	cardBody: 'card-body',
 
 	legend: {
 		card: 'leg-card',

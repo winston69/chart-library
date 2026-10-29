@@ -210,9 +210,12 @@ export class Legend {
 		root.appendChild(titleEl);
 		this._elements.titleEl = titleEl;
 
+		const bodyEl = document.createElement('div');
+		bodyEl.className = CSS.cardBody;
 		const itemsEl = document.createElement('div');
 		itemsEl.className = css.items;
-		root.appendChild(itemsEl);
+		bodyEl.appendChild(itemsEl);
+		root.appendChild(bodyEl);
 		this._elements.itemsEl = itemsEl;
 
 		this._elements.root = root;

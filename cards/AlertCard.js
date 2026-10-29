@@ -83,9 +83,12 @@ export class AlertCard {
 		title.textContent = 'Alerts';
 		root.appendChild(title);
 
+		const body = document.createElement('div');
+		body.className = CSS.cardBody;
 		const list = document.createElement('div');
 		list.className = css.list;
-		root.appendChild(list);
+		body.appendChild(list);
+		root.appendChild(body);
 
 		this._elements = { root, list };
 		for (let i = this._alerts.length - 1; i >= 0; i--) {
