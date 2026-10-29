@@ -16,12 +16,22 @@ const timestampFormatter = new Intl.DateTimeFormat('en-US', {
 	hourCycle: 'h23'
 });
 
-function formatTimestamp(timestamp) {
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hourCycle: 'h23'
+});
+
+function formatTimestamp(timestamp, formatter = timestampFormatter) {
 	if (!Number.isFinite(timestamp)) return '—';
 	const parts = Object.fromEntries(
-		timestampFormatter.formatToParts(timestamp).map(part => [part.type, part.value])
+		formatter.formatToParts(timestamp).map(part => [part.type, part.value])
 	);
-	return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+	if (parts.month && parts.day) {
+		return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+	}
+	return `${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 export class AlertCard {
@@ -106,14 +116,18 @@ export class AlertCard {
 		if (direction === 'bearish') item.classList.add(css.bearish);
 		if (pulse) item.classList.add(css.pulse);
 
+		const fullDateTime = formatTimestamp(alert.time);
+		const fullMessage = alert.message ?? '';
+		item.setAttribute('title', `${fullDateTime} — ${fullMessage}`);
+
 		const time = document.createElement('time');
 		time.className = css.time;
-		time.textContent = formatTimestamp(alert.time);
+		time.textContent = formatTimestamp(alert.time, timeFormatter);
 		item.appendChild(time);
 
 		const message = document.createElement('span');
 		message.className = css.message;
-		message.textContent = alert.message;
+		message.textContent = fullMessage;
 		item.appendChild(message);
 		return item;
 	}
