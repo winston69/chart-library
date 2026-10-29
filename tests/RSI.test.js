@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRSICalc } from '../indicators/RSI.calc.js';
+import { detectRSICross } from '../indicators/RSI.js';
 
 const row = lastPrice => ({ lastPrice });
 
@@ -37,4 +38,32 @@ test('RSI reset returns the calculator to its initial state', () => {
 	rsi.reset();
 
 	assert.deepEqual(rsi.compute(row(10)), initial);
+});
+
+test('RSI detects overbought and oversold crossings', () => {
+	assert.deepEqual(detectRSICross(
+		{ rsi: 70 },
+		{ openTime: 100, rsi: 71 }
+	), {
+		type: 'RSI_OVERBOUGHT',
+		time: 100,
+		message: 'RSI is overbought (>70). Potential pullback.',
+		direction: 'bearish',
+		severity: 'warning'
+	});
+
+	assert.deepEqual(detectRSICross(
+		{ rsi: 30 },
+		{ openTime: 200, rsi: 29 }
+	), {
+		type: 'RSI_OVERSOLD',
+		time: 200,
+		message: 'RSI is oversold (<30). Potential bounce.',
+		direction: 'bullish',
+		severity: 'info'
+	});
+
+	assert.equal(detectRSICross({ rsi: 70 }, { rsi: 70 }), null);
+	assert.equal(detectRSICross({ rsi: 29 }, { rsi: 28 }), null);
+	assert.equal(detectRSICross({ rsi: 29 }, { rsi: 31 }), null);
 });

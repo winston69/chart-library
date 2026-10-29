@@ -33,6 +33,33 @@ import { BaseIndicator } from './BaseIndicator.js';
 const DEFAULT_HEIGHT = 0.20;
 const DEFAULT_DECIMALS = 2;
 
+export function detectRSICross(prevRow, row, upperLevel = 70, lowerLevel = 30) {
+	if (!prevRow || !row) return null;
+	const previousRSI = prevRow.rsi;
+	const rsi = row.rsi;
+	if (![previousRSI, rsi].every(Number.isFinite)) return null;
+
+	if (previousRSI <= upperLevel && rsi > upperLevel) {
+		return {
+			type: 'RSI_OVERBOUGHT',
+			time: row.openTime,
+			message: 'RSI is overbought (>70). Potential pullback.',
+			direction: 'bearish',
+			severity: 'warning'
+		};
+	}
+	if (previousRSI >= lowerLevel && rsi < lowerLevel) {
+		return {
+			type: 'RSI_OVERSOLD',
+			time: row.openTime,
+			message: 'RSI is oversold (<30). Potential bounce.',
+			direction: 'bullish',
+			severity: 'info'
+		};
+	}
+	return null;
+}
+
 export class RSI extends BaseIndicator {
 	constructor(options = {}) {
 		super({
@@ -59,8 +86,11 @@ export class RSI extends BaseIndicator {
 			lowerLevel = 30,
 			showLevels = true,
 			trimTail = false,
-			idPrefix = 'rsi'
+			idPrefix = 'rsi',
+			onRowUpdate = null
 		} = options;
+
+		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
 
 		// ─── RSI line (primary) ───
 		this.line = this.addLayer(
@@ -112,6 +142,18 @@ export class RSI extends BaseIndicator {
 		}
 
 		this.build();
+	}
+
+	appendOrUpdate(row, keyFn) {
+		const data = this.primaryLayer && this.primaryLayer.data;
+		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+
+		super.appendOrUpdate(row, keyFn);
+
+		if (prevRow && this.onRowUpdate) {
+			const event = detectRSICross(prevRow, row);
+			if (event) this.onRowUpdate(event);
+		}
 	}
 }
 

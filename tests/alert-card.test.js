@@ -94,5 +94,14 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 	assert.equal(card._elements.list.children[1].classList.contains('bearish'), true);
 
 	card.clear();
+	card.addAlert({
+		type: 'VOLUME_SPIKE',
+		severity: 'info',
+		time: Date.UTC(2026, 0, 2, 3, 7, 5),
+		message: 'High volume spike detected.'
+	});
+	assert.equal(card._elements.list.children[0].classList.contains('bearish'), false);
+
+	card.clear();
 	assert.equal(card._elements.list.children.length, 0);
 });

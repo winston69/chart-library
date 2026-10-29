@@ -40,6 +40,40 @@ import { BaseIndicator } from './BaseIndicator.js';
 const DEFAULT_HEIGHT = 0.55;
 const DEFAULT_DECIMALS = 7;
 
+function getPrice(row) {
+	if (Number.isFinite(row.lastPrice)) return row.lastPrice;
+	return row.close;
+}
+
+export function detectBollingerBreakout(prevRow, row) {
+	if (!prevRow || !row) return null;
+	const previousPrice = getPrice(prevRow);
+	const price = getPrice(row);
+	if (![previousPrice, price].every(Number.isFinite)) return null;
+
+	if ([prevRow.bbUpper, row.bbUpper].every(Number.isFinite)
+		&& previousPrice <= prevRow.bbUpper && price > row.bbUpper) {
+		return {
+			type: 'BB_UPPER_BREAKOUT',
+			time: row.openTime,
+			message: 'Price broke above Upper Bollinger Band.',
+			direction: 'bullish',
+			severity: 'info'
+		};
+	}
+	if ([prevRow.bbLower, row.bbLower].every(Number.isFinite)
+		&& previousPrice >= prevRow.bbLower && price < row.bbLower) {
+		return {
+			type: 'BB_LOWER_BREAKOUT',
+			time: row.openTime,
+			message: 'Price broke below Lower Bollinger Band.',
+			direction: 'bearish',
+			severity: 'warning'
+		};
+	}
+	return null;
+}
+
 export class Bollinger extends BaseIndicator {
 	constructor(options = {}) {
 		super({
@@ -63,8 +97,11 @@ export class Bollinger extends BaseIndicator {
 			showLines = true,
 			showMean = true,
 			trimTail = false,
-			idPrefix = 'bb'
+			idPrefix = 'bb',
+			onRowUpdate = null
 		} = options;
+
+		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
 
 		// ─── Boundary lines (constructed first, added later) ───
 		const lowerLine = new Line({
@@ -134,6 +171,18 @@ export class Bollinger extends BaseIndicator {
 		}
 
 		this.build();
+	}
+
+	appendOrUpdate(row, keyFn) {
+		const data = this.primaryLayer && this.primaryLayer.data;
+		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+
+		super.appendOrUpdate(row, keyFn);
+
+		if (prevRow && this.onRowUpdate) {
+			const event = detectBollingerBreakout(prevRow, row);
+			if (event) this.onRowUpdate(event);
+		}
 	}
 }
 

@@ -99,7 +99,11 @@ export class AlertCard {
 	_createAlert(alert, pulse = false) {
 		const item = document.createElement('div');
 		item.className = css.item;
-		item.classList.add(alert.type === 'MACD_CROSS_BULLISH' ? css.bullish : css.bearish);
+		const direction = alert.direction
+			|| (alert.type === 'MACD_CROSS_BULLISH' ? 'bullish'
+				: alert.type === 'MACD_CROSS_BEARISH' ? 'bearish' : null);
+		if (direction === 'bullish') item.classList.add(css.bullish);
+		if (direction === 'bearish') item.classList.add(css.bearish);
 		if (pulse) item.classList.add(css.pulse);
 
 		const time = document.createElement('time');

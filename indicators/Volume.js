@@ -17,7 +17,8 @@
 //
 // There is no matching computer in the worker — volume is a raw
 // field the workers already accumulate (`row.volume += quantity`
-// in foldTrade). This class only renders.
+// in foldTrade). This class also reports spikes against a rolling
+// average of recent completed buckets through `onRowUpdate`.
 //
 // Usage:
 //   const volume = new Volume({ plane });
@@ -32,6 +33,23 @@ import { BaseIndicator } from './BaseIndicator.js';
 const DEFAULT_Y_GROUP = 'volume-group';
 const DEFAULT_HEIGHT = 0.20;
 const DEFAULT_DECIMALS = 2;
+const DEFAULT_AVERAGE_PERIOD = 20;
+const VOLUME_SPIKE_MULTIPLIER = 3;
+
+export function detectVolumeSpike(row, averageVolume, previousVolume = 0) {
+	if (!row || !Number.isFinite(row.volume) || !Number.isFinite(averageVolume) || averageVolume <= 0) {
+		return null;
+	}
+	const threshold = VOLUME_SPIKE_MULTIPLIER * averageVolume;
+	if (row.volume <= threshold || previousVolume > threshold) return null;
+
+	return {
+		type: 'VOLUME_SPIKE',
+		time: row.openTime,
+		message: 'High volume spike detected.',
+		severity: 'info'
+	};
+}
 
 export class Volume extends BaseIndicator {
 	constructor(options = {}) {
@@ -57,8 +75,11 @@ export class Volume extends BaseIndicator {
 			openAccessor = d => d.openPrice,
 			closeAccessor = d => d.lastPrice,
 			trimTail = false,
-			idPrefix = 'volume'
+			idPrefix = 'volume',
+			onRowUpdate = null
 		} = options;
+
+		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
 
 		this.bars = this.addLayer(
 			new BarChart({
@@ -79,6 +100,32 @@ export class Volume extends BaseIndicator {
 		);
 
 		this.build();
+	}
+
+	appendOrUpdate(row, keyFn) {
+		const data = this.primaryLayer && this.primaryLayer.data;
+		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+		const sameBucket = prevRow && keyFn(prevRow) === keyFn(row);
+		const historyEnd = data ? data.length - (sameBucket ? 1 : 0) : 0;
+		const historyStart = Math.max(0, historyEnd - DEFAULT_AVERAGE_PERIOD);
+		let totalVolume = 0;
+		let volumeCount = 0;
+
+		for (let i = historyStart; i < historyEnd; i++) {
+			const volume = data[i].volume;
+			if (!Number.isFinite(volume)) continue;
+			totalVolume += volume;
+			volumeCount++;
+		}
+
+		const averageVolume = volumeCount > 0 ? totalVolume / volumeCount : 0;
+		const event = prevRow && this.onRowUpdate
+			? detectVolumeSpike(row, averageVolume, sameBucket ? prevRow.volume : 0)
+			: null;
+
+		super.appendOrUpdate(row, keyFn);
+
+		if (event) this.onRowUpdate(event);
 	}
 }
 
