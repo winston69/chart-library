@@ -22,9 +22,10 @@
 	overflow: hidden;
 	pointer-events: none;
 
-	/* Row flow: left-to-right, wrapping top-down. */
+	/* Keep the first row anchored at the bottom and add wrapped rows above it. */
 	display: flex;
-	flex-wrap: wrap;
+	flex-direction: row;
+	flex-wrap: wrap-reverse;
 	align-content: flex-start;
 	align-items: stretch;
 	justify-content: flex-start;
@@ -89,9 +90,11 @@
 
 .card-body {
 	box-sizing: border-box;
-	flex: 1 1 auto;
-	min-height: calc(5.6em + 4px);
-	padding: 2px 4px;
+	flex: 0 0 auto;
+	height: auto;
+	min-height: 7em;
+	max-height: 7em;
+	padding: 0 4px;
 	overflow-x: hidden;
 	overflow-y: auto;
 	scrollbar-width: thin;

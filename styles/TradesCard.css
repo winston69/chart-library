@@ -30,6 +30,7 @@
 
 .trades-card th,
 .trades-card td {
+	line-height: 1.4;
 	height: 1.4em;
 	padding: 0 2px;
 	white-space: nowrap;
