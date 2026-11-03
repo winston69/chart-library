@@ -638,6 +638,8 @@ function handleLiveMessage(evt, source) {
 			loader.hide();
 			break;
 		case 'tick':
+			console.log('Live tick received:', msg.data);
+			console.log('MACD handle exists:', !!indicatorInstances.macd);
 			applyTick(msg.data);
 			break;
 		case 'trade': {
