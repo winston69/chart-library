@@ -336,7 +336,6 @@ const alertCard = new AlertCard({
 });
 
 function handleIndicatorAlert(event) {
-	console.log('[indicator alert]', event);
 	alertCard.addAlert(event);
 }
 
@@ -638,8 +637,6 @@ function handleLiveMessage(evt, source) {
 			loader.hide();
 			break;
 		case 'tick':
-			console.log('Live tick received:', msg.data);
-			console.log('MACD handle exists:', !!indicatorInstances.macd);
 			applyTick(msg.data);
 			break;
 		case 'trade': {

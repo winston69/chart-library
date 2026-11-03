@@ -87,6 +87,7 @@ export class MACD extends BaseIndicator {
 		} = options;
 
 		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
+		this._hasEmittedInitialAlert = false;
 
 		// ─── Histogram (behind) ───
 		if (showHistogram) {
@@ -148,24 +149,52 @@ export class MACD extends BaseIndicator {
 		this.build();
 	}
 
+	setData(rows) {
+		super.setData(rows);
+		const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+		this._emitInitialAlert(lastRow);
+	}
+
 	appendOrUpdate(row, keyFn) {
 		const data = this.primaryLayer && this.primaryLayer.data;
-		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
-
-		console.log('MACD tick:', row.macd, row.macdSignal);
-		if (prevRow) {
-			console.log('MACD previous tick:', prevRow.macd, prevRow.macdSignal);
-		}
+		const lastRow = data && data.length > 0 ? data[data.length - 1] : null;
+		const prevMacd = lastRow ? lastRow.macd : null;
+		const prevSignal = lastRow ? lastRow.macdSignal : null;
+		const prevTime = lastRow ? lastRow.openTime : null;
 
 		super.appendOrUpdate(row, keyFn);
 
-		if (prevRow && this.onRowUpdate) {
-			const event = detectMACDCross(prevRow, row);
-			if (event) {
-				console.log('MACD crossover values:', prevRow.macd, prevRow.macdSignal, row.macd, row.macdSignal);
-				this.onRowUpdate(event);
+		this._emitInitialAlert(row);
+
+		if (lastRow && this.onRowUpdate) {
+			const crossedAbove = prevMacd <= prevSignal && row.macd > row.macdSignal;
+			const crossedBelow = prevMacd >= prevSignal && row.macd < row.macdSignal;
+			if (prevTime !== row.openTime || crossedAbove || crossedBelow) {
+				const event = detectMACDCross({
+					macd: prevMacd,
+					macdSignal: prevSignal,
+					openTime: prevTime
+				}, row);
+				if (event) this.onRowUpdate(event);
 			}
 		}
+	}
+
+	_emitInitialAlert(row) {
+		if (this._hasEmittedInitialAlert
+			|| !this.onRowUpdate
+			|| !row
+			|| !Number.isFinite(row.macd)
+			|| !Number.isFinite(row.macdSignal)) {
+			return;
+		}
+
+		this._hasEmittedInitialAlert = true;
+		this.onRowUpdate({
+			type: 'MACD_INIT',
+			time: row.openTime,
+			message: `MACD ready: ${row.macd} / Signal: ${row.macdSignal}`
+		});
 	}
 }
 

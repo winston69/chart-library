@@ -83,13 +83,44 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 	});
 	const keyFn = row => row.openTime;
 
+	macd.line.updateLastPoint = row => Object.assign(macd.line.data[macd.line.data.length - 1], row);
 	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
 	macd.appendOrUpdate({ openTime: 100, macd: 3, macdSignal: 2 }, keyFn);
 
+	assert.deepEqual(events, [
+		{
+			type: 'MACD_INIT',
+			time: 100,
+			message: 'MACD ready: 1 / Signal: 2'
+		},
+		{
+			type: 'MACD_CROSS_BULLISH',
+			time: 100,
+			message: 'MACD crossed above Signal'
+		}
+	]);
+});
+
+test('MACD emits one initial state alert when seeded with rows', () => {
+	const plane = {
+		resolveYGroup: () => 'macd-group',
+		addLayer() {}
+	};
+	const events = [];
+	const macd = new MACD({
+		plane,
+		showHistogram: false,
+		showSignalLine: false,
+		onRowUpdate: event => events.push(event)
+	});
+
+	macd.setData([{ openTime: 100, macd: 1.25, macdSignal: 0.75 }]);
+	macd.setData([{ openTime: 200, macd: 1.5, macdSignal: 1.25 }]);
+
 	assert.deepEqual(events, [{
-		type: 'MACD_CROSS_BULLISH',
+		type: 'MACD_INIT',
 		time: 100,
-		message: 'MACD crossed above Signal'
+		message: 'MACD ready: 1.25 / Signal: 0.75'
 	}]);
 });
 
