@@ -211,7 +211,7 @@ const volume = new Volume({
 	axisOptions: { decimals: QTY_DECIMALS },
 	xAccessor: xAcc,
 	trimTail: true,
-	onRowUpdate: event => alertCard.addAlert(event)
+	onRowUpdate: handleIndicatorAlert
 });
 
 plane.addLayer(priceChart, {
@@ -335,21 +335,26 @@ const alertCard = new AlertCard({
 	visible: true
 });
 
+function handleIndicatorAlert(event) {
+	console.log('[indicator alert]', event);
+	alertCard.addAlert(event);
+}
+
 const indicatorFactories = {
 	bollinger: () => new Bollinger({
 		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true,
-		onRowUpdate: event => alertCard.addAlert(event)
+		onRowUpdate: handleIndicatorAlert
 	}),
 	macd: () => new MACD({
 		plane,
 		decimals: SYMBOL_DECIMALS + 4,
 		xAccessor: xAcc,
 		trimTail: true,
-		onRowUpdate: event => alertCard.addAlert(event)
+		onRowUpdate: handleIndicatorAlert
 	}),
 	rsi: () => new RSI({
 		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true,
-		onRowUpdate: event => alertCard.addAlert(event)
+		onRowUpdate: handleIndicatorAlert
 	}),
 	sma: () => new SMA({
 		plane, decimals: SYMBOL_DECIMALS, xAccessor: xAcc, trimTail: true

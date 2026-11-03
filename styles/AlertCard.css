@@ -1,7 +1,14 @@
 .cs-card.alert-card {
-	width: 300px;
+	width: 250px;
 	max-width: 100%;
-	min-width: 280px;
+	min-width: 0;
+}
+
+.alert-card .card-body {
+	height: auto;
+	min-height: 0;
+	max-height: calc(5 * 1.4em);
+	flex: 0 1 auto;
 }
 
 .alert-card[hidden] {
@@ -42,9 +49,9 @@
 .alert-message {
 	min-width: 0;
 	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	text-align: left;
+	white-space: normal;
+	word-wrap: break-word;
 }
 
 .alert-item.bullish .alert-message {
