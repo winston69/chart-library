@@ -40,9 +40,11 @@ export class AlertCard {
 		this.visible = options.visible !== false;
 		this.maxAlerts = options.maxAlerts || MAX_ALERTS;
 		this._alerts = [];
+		this._alertCount = 0;
 		this._elements = {
 			root: null,
-			list: null
+			list: null,
+			title: null
 		};
 	}
 
@@ -55,8 +57,10 @@ export class AlertCard {
 
 	addAlert(alert) {
 		if (!alert) return;
+		this._alertCount++;
 		this._alerts.unshift(alert);
 		if (this._alerts.length > this.maxAlerts) this._alerts.length = this.maxAlerts;
+		this._updateTitle();
 
 		const list = this._elements.list;
 		if (!list) return;
@@ -79,7 +83,7 @@ export class AlertCard {
 	destroy() {
 		const root = this._elements.root;
 		if (root && root.parentNode) root.parentNode.removeChild(root);
-		this._elements = { root: null, list: null };
+		this._elements = { root: null, list: null, title: null };
 	}
 
 	_createContent() {
@@ -90,7 +94,8 @@ export class AlertCard {
 
 		const title = document.createElement('div');
 		title.className = CSS.cardTitle;
-		title.textContent = 'Alerts';
+		this._elements.title = title;
+		this._updateTitle();
 		root.appendChild(title);
 
 		const body = document.createElement('div');
@@ -100,9 +105,15 @@ export class AlertCard {
 		body.appendChild(list);
 		root.appendChild(body);
 
-		this._elements = { root, list };
+		this._elements = { root, list, title };
 		for (let i = this._alerts.length - 1; i >= 0; i--) {
 			list.insertBefore(this._createAlert(this._alerts[i]), list.firstChild);
+		}
+	}
+
+	_updateTitle() {
+		if (this._elements.title) {
+			this._elements.title.textContent = `Alerts (${this._alertCount})`;
 		}
 	}
 

@@ -66,6 +66,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 
 	const card = new AlertCard({ maxAlerts: 2 });
 	card.render(new Element('div'));
+	assert.equal(card._elements.title.textContent, 'Alerts (0)');
 	card.addAlert({
 		type: 'MACD_CROSS_BULLISH',
 		time: Date.UTC(2026, 0, 2, 3, 4, 5),
@@ -78,10 +79,11 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 	});
 
 	assert.equal(card._elements.root.children[0].className, 'card-title');
-	assert.equal(card._elements.root.children[0].textContent, 'Alerts');
+	assert.equal(card._elements.root.children[0].textContent, 'Alerts (2)');
 	assert.equal(card._elements.list.parentNode.className, 'card-body');
 	assert.equal(card._elements.list.children.length, 2);
 	assert.equal(card._elements.list.children[0].classList.contains('bearish'), true);
+
 	assert.equal(card._elements.list.children[0].classList.contains('alert-pulse'), true);
 	assert.match(card._elements.list.children[0].children[0].textContent, /^\d{2}:\d{2}:\d{2}$/);
 	assert.match(card._elements.list.children[0].attributes.get('title'), /^\d{2}\/\d{2} \d{2}:\d{2}:\d{2} — MACD crossed below Signal$/);
@@ -94,6 +96,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 		time: Date.UTC(2026, 0, 2, 3, 6, 5),
 		message: 'MACD crossed above Signal'
 	});
+	assert.equal(card._elements.title.textContent, 'Alerts (3)');
 	assert.equal(card._elements.list.children.length, 2);
 	assert.equal(card._elements.list.children[1].classList.contains('bearish'), true);
 
@@ -115,6 +118,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 		message: 'RSI is overbought (>70). Potential pullback.'
 	});
 	assert.equal(card._elements.list.children[0].children[1].textContent, '⚠️ RSI is overbought (>70). Potential pullback.');
+	assert.equal(card._elements.title.textContent, 'Alerts (5)');
 
 	card.clear();
 	assert.equal(card._elements.list.children.length, 0);

@@ -86,6 +86,7 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 	macd.line.updateLastPoint = row => Object.assign(macd.line.data[macd.line.data.length - 1], row);
 	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
 	macd.appendOrUpdate({ openTime: 100, macd: 3, macdSignal: 2 }, keyFn);
+	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
 
 	assert.deepEqual(events, [
 		{
@@ -97,6 +98,11 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 			type: 'MACD_CROSS_BULLISH',
 			time: 100,
 			message: 'MACD crossed above Signal'
+		},
+		{
+			type: 'MACD_CROSS_BEARISH',
+			time: 100,
+			message: 'MACD crossed below Signal'
 		}
 	]);
 });

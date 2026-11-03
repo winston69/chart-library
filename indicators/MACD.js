@@ -160,22 +160,21 @@ export class MACD extends BaseIndicator {
 		const lastRow = data && data.length > 0 ? data[data.length - 1] : null;
 		const prevMacd = lastRow ? lastRow.macd : null;
 		const prevSignal = lastRow ? lastRow.macdSignal : null;
-		const prevTime = lastRow ? lastRow.openTime : null;
 
 		super.appendOrUpdate(row, keyFn);
 
 		this._emitInitialAlert(row);
 
-		if (lastRow && this.onRowUpdate) {
+		if (prevMacd !== null && prevSignal !== null && this.onRowUpdate) {
 			const crossedAbove = prevMacd <= prevSignal && row.macd > row.macdSignal;
 			const crossedBelow = prevMacd >= prevSignal && row.macd < row.macdSignal;
-			if (prevTime !== row.openTime || crossedAbove || crossedBelow) {
-				const event = detectMACDCross({
-					macd: prevMacd,
-					macdSignal: prevSignal,
-					openTime: prevTime
-				}, row);
-				if (event) this.onRowUpdate(event);
+			const event = detectMACDCross({
+				macd: prevMacd,
+				macdSignal: prevSignal
+			}, row);
+			if (event && (crossedAbove || crossedBelow)) {
+				console.log('MACD crossover:', event);
+				this.onRowUpdate(event);
 			}
 		}
 	}
