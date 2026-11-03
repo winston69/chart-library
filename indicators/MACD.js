@@ -152,11 +152,19 @@ export class MACD extends BaseIndicator {
 		const data = this.primaryLayer && this.primaryLayer.data;
 		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
 
+		console.log('MACD tick:', row.macd, row.macdSignal);
+		if (prevRow) {
+			console.log('MACD previous tick:', prevRow.macd, prevRow.macdSignal);
+		}
+
 		super.appendOrUpdate(row, keyFn);
 
 		if (prevRow && this.onRowUpdate) {
 			const event = detectMACDCross(prevRow, row);
-			if (event) this.onRowUpdate(event);
+			if (event) {
+				console.log('MACD crossover values:', prevRow.macd, prevRow.macdSignal, row.macd, row.macdSignal);
+				this.onRowUpdate(event);
+			}
 		}
 	}
 }

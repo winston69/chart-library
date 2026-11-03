@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMACDCalc } from '../indicators/MACD.calc.js';
-import { detectMACDCross } from '../indicators/MACD.js';
+import { detectMACDCross, MACD } from '../indicators/MACD.js';
 
 const row = lastPrice => ({ lastPrice });
 
@@ -67,6 +67,30 @@ test('MACD detects bullish and bearish signal crossings', () => {
 		{ macd: 1, macdSignal: 2 },
 		{ openTime: 400, macd: undefined, macdSignal: 2 }
 	), null);
+});
+
+test('MACD reports a crossover between updates to the same forming bucket', () => {
+	const plane = {
+		resolveYGroup: () => 'macd-group',
+		addLayer() {}
+	};
+	const events = [];
+	const macd = new MACD({
+		plane,
+		showHistogram: false,
+		showSignalLine: false,
+		onRowUpdate: event => events.push(event)
+	});
+	const keyFn = row => row.openTime;
+
+	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
+	macd.appendOrUpdate({ openTime: 100, macd: 3, macdSignal: 2 }, keyFn);
+
+	assert.deepEqual(events, [{
+		type: 'MACD_CROSS_BULLISH',
+		time: 100,
+		message: 'MACD crossed above Signal'
+	}]);
 });
 
 test('MACD reset returns the calculator to its initial state', () => {
