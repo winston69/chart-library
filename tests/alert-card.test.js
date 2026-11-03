@@ -86,7 +86,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 
 	assert.equal(card._elements.list.children[0].classList.contains('alert-pulse'), true);
 	assert.match(card._elements.list.children[0].children[0].textContent, /^\d{2}:\d{2}:\d{2}$/);
-	assert.match(card._elements.list.children[0].attributes.get('title'), /^\d{2}\/\d{2} \d{2}:\d{2}:\d{2} — MACD crossed below Signal$/);
+	assert.equal(card._elements.list.children[0].attributes.has('title'), false);
 	assert.equal(card._elements.list.children[0].children[1].textContent, '🔴 MACD crossed below Signal');
 	assert.equal(card._elements.list.children[1].classList.contains('bullish'), true);
 	assert.equal(card._elements.list.children[1].children[1].textContent, '🟢 MACD crossed above Signal');

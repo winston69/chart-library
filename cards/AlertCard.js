@@ -130,9 +130,7 @@ export class AlertCard {
 		if (direction === 'bearish') item.classList.add(css.bearish);
 		if (pulse) item.classList.add(css.pulse);
 
-		const fullDateTime = formatTimestamp(alert.time);
 		const fullMessage = alert.message ?? '';
-		item.setAttribute('title', `${fullDateTime} — ${fullMessage}`);
 
 		const time = document.createElement('time');
 		time.className = css.time;

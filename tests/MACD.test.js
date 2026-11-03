@@ -83,10 +83,14 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 	});
 	const keyFn = row => row.openTime;
 
-	macd.line.updateLastPoint = row => Object.assign(macd.line.data[macd.line.data.length - 1], row);
-	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
-	macd.appendOrUpdate({ openTime: 100, macd: 3, macdSignal: 2 }, keyFn);
-	macd.appendOrUpdate({ openTime: 100, macd: 1, macdSignal: 2 }, keyFn);
+	const rows = [{ openTime: 100, macd: 1, macdSignal: 2 }];
+	macd.setData(rows);
+	const bullishRow = { openTime: 100, macd: 3, macdSignal: 2 };
+	rows[0] = bullishRow;
+	macd.appendOrUpdate(bullishRow, keyFn);
+	const bearishRow = { openTime: 100, macd: 1, macdSignal: 2 };
+	rows[0] = bearishRow;
+	macd.appendOrUpdate(bearishRow, keyFn);
 
 	assert.deepEqual(events, [
 		{

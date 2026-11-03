@@ -88,6 +88,8 @@ export class MACD extends BaseIndicator {
 
 		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
 		this._hasEmittedInitialAlert = false;
+		this._previousMacd = null;
+		this._previousSignal = null;
 
 		// ─── Histogram (behind) ───
 		if (showHistogram) {
@@ -152,31 +154,32 @@ export class MACD extends BaseIndicator {
 	setData(rows) {
 		super.setData(rows);
 		const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+		this._previousMacd = lastRow && Number.isFinite(lastRow.macd) ? lastRow.macd : null;
+		this._previousSignal = lastRow && Number.isFinite(lastRow.macdSignal) ? lastRow.macdSignal : null;
 		this._emitInitialAlert(lastRow);
 	}
 
 	appendOrUpdate(row, keyFn) {
-		const data = this.primaryLayer && this.primaryLayer.data;
-		const lastRow = data && data.length > 0 ? data[data.length - 1] : null;
-		const prevMacd = lastRow ? lastRow.macd : null;
-		const prevSignal = lastRow ? lastRow.macdSignal : null;
+		const prevMacd = this._previousMacd;
+		const prevSignal = this._previousSignal;
 
 		super.appendOrUpdate(row, keyFn);
 
 		this._emitInitialAlert(row);
 
-		if (prevMacd !== null && prevSignal !== null && this.onRowUpdate) {
-			const crossedAbove = prevMacd <= prevSignal && row.macd > row.macdSignal;
-			const crossedBelow = prevMacd >= prevSignal && row.macd < row.macdSignal;
+		if (Number.isFinite(prevMacd) && Number.isFinite(prevSignal) && this.onRowUpdate) {
 			const event = detectMACDCross({
 				macd: prevMacd,
 				macdSignal: prevSignal
 			}, row);
-			if (event && (crossedAbove || crossedBelow)) {
+			if (event) {
 				console.log('MACD crossover:', event);
 				this.onRowUpdate(event);
 			}
 		}
+
+		this._previousMacd = Number.isFinite(row.macd) ? row.macd : null;
+		this._previousSignal = Number.isFinite(row.macdSignal) ? row.macdSignal : null;
 	}
 
 	_emitInitialAlert(row) {
