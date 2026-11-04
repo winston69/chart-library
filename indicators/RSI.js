@@ -42,7 +42,7 @@ export function detectRSICross(prevRow, row, upperLevel = 70, lowerLevel = 30) {
 	if (previousRSI <= upperLevel && rsi > upperLevel) {
 		return {
 			type: 'RSI_OVERBOUGHT',
-			time: row.openTime,
+			time: row.eventTime ?? row.openTime,
 			message: 'RSI is overbought (>70). Potential pullback.',
 			direction: 'bearish',
 			severity: 'warning'
@@ -51,7 +51,7 @@ export function detectRSICross(prevRow, row, upperLevel = 70, lowerLevel = 30) {
 	if (previousRSI >= lowerLevel && rsi < lowerLevel) {
 		return {
 			type: 'RSI_OVERSOLD',
-			time: row.openTime,
+			time: row.eventTime ?? row.openTime,
 			message: 'RSI is oversold (<30). Potential bounce.',
 			direction: 'bullish',
 			severity: 'info'

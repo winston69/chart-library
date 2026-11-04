@@ -43,10 +43,10 @@ test('RSI reset returns the calculator to its initial state', () => {
 test('RSI detects overbought and oversold crossings', () => {
 	assert.deepEqual(detectRSICross(
 		{ rsi: 70 },
-		{ openTime: 100, rsi: 71 }
+		{ openTime: 100, eventTime: 101, rsi: 71 }
 	), {
 		type: 'RSI_OVERBOUGHT',
-		time: 100,
+		time: 101,
 		message: 'RSI is overbought (>70). Potential pullback.',
 		direction: 'bearish',
 		severity: 'warning'

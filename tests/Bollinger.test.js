@@ -5,10 +5,10 @@ import { detectBollingerBreakout } from '../indicators/Bollinger.js';
 test('Bollinger detects upper and lower band breakouts', () => {
 	assert.deepEqual(detectBollingerBreakout(
 		{ lastPrice: 100, bbUpper: 105, bbLower: 95 },
-		{ openTime: 100, lastPrice: 106, bbUpper: 105, bbLower: 95 }
+		{ openTime: 100, eventTime: 101, lastPrice: 106, bbUpper: 105, bbLower: 95 }
 	), {
 		type: 'BB_UPPER_BREAKOUT',
-		time: 100,
+		time: 101,
 		message: 'Price broke above Upper Bollinger Band.',
 		direction: 'bullish',
 		severity: 'info'

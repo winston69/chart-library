@@ -43,10 +43,10 @@ test('MACD snapshot and restore reproduce the next result', () => {
 test('MACD detects bullish and bearish signal crossings', () => {
 	assert.deepEqual(detectMACDCross(
 		{ macd: 1, macdSignal: 2 },
-		{ openTime: 100, macd: 3, macdSignal: 2 }
+		{ openTime: 100, eventTime: 101, macd: 3, macdSignal: 2 }
 	), {
 		type: 'MACD_CROSS_BULLISH',
-		time: 100,
+		time: 101,
 		message: 'MACD crossed above Signal'
 	});
 
@@ -83,29 +83,29 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 	});
 	const keyFn = row => row.openTime;
 
-	const rows = [{ openTime: 100, macd: 1, macdSignal: 2 }];
+	const rows = [{ openTime: 100, eventTime: 1000, macd: 1, macdSignal: 2 }];
 	macd.setData(rows);
-	const bullishRow = { openTime: 100, macd: 3, macdSignal: 2 };
+	const bullishRow = { openTime: 100, eventTime: 1001, macd: 3, macdSignal: 2 };
 	rows[0] = bullishRow;
 	macd.appendOrUpdate(bullishRow, keyFn);
-	const bearishRow = { openTime: 100, macd: 1, macdSignal: 2 };
+	const bearishRow = { openTime: 100, eventTime: 1002, macd: 1, macdSignal: 2 };
 	rows[0] = bearishRow;
 	macd.appendOrUpdate(bearishRow, keyFn);
 
 	assert.deepEqual(events, [
 		{
 			type: 'MACD_INIT',
-			time: 100,
+			time: 1000,
 			message: 'MACD ready: 1 / Signal: 2'
 		},
 		{
 			type: 'MACD_CROSS_BULLISH',
-			time: 100,
+			time: 1001,
 			message: 'MACD crossed above Signal'
 		},
 		{
 			type: 'MACD_CROSS_BEARISH',
-			time: 100,
+			time: 1002,
 			message: 'MACD crossed below Signal'
 		}
 	]);
@@ -124,12 +124,12 @@ test('MACD emits one initial state alert when seeded with rows', () => {
 		onRowUpdate: event => events.push(event)
 	});
 
-	macd.setData([{ openTime: 100, macd: 1.25, macdSignal: 0.75 }]);
+	macd.setData([{ openTime: 100, eventTime: 101, macd: 1.25, macdSignal: 0.75 }]);
 	macd.setData([{ openTime: 200, macd: 1.5, macdSignal: 1.25 }]);
 
 	assert.deepEqual(events, [{
 		type: 'MACD_INIT',
-		time: 100,
+		time: 101,
 		message: 'MACD ready: 1.25 / Signal: 0.75'
 	}]);
 });
