@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRSICalc } from '../indicators/RSI.calc.js';
-import { detectRSICross } from '../indicators/RSI.js';
+import { detectRSICross, RSI } from '../indicators/RSI.js';
 
 const row = lastPrice => ({ lastPrice });
 
@@ -66,4 +66,27 @@ test('RSI detects overbought and oversold crossings', () => {
 	assert.equal(detectRSICross({ rsi: 70 }, { rsi: 70 }), null);
 	assert.equal(detectRSICross({ rsi: 29 }, { rsi: 28 }), null);
 	assert.equal(detectRSICross({ rsi: 29 }, { rsi: 31 }), null);
+});
+
+test('RSI detects a same-bucket crossover after the previous row is mutated', () => {
+	const plane = {
+		resolveYGroup: () => 'rsi-group',
+		addLayer() {}
+	};
+	const events = [];
+	const rsi = new RSI({
+		plane,
+		showLevels: false,
+		onRowUpdate: event => events.push(event)
+	});
+	const rows = [{ openTime: 100, eventTime: 1000, rsi: 65 }];
+	rsi.setData(rows);
+	rsi.line.updateLastPoint = row => Object.assign(rows[0], row);
+
+	Object.assign(rows[0], { eventTime: 1001, rsi: 72 });
+	rsi.appendOrUpdate(rows[0], row => row.openTime);
+
+	assert.equal(events.length, 1);
+	assert.equal(events[0].type, 'RSI_OVERBOUGHT');
+	assert.equal(events[0].time, 1001);
 });

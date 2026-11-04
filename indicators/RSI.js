@@ -91,6 +91,7 @@ export class RSI extends BaseIndicator {
 		} = options;
 
 		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
+		this._previousRSI = null;
 
 		// ─── RSI line (primary) ───
 		this.line = this.addLayer(
@@ -144,16 +145,23 @@ export class RSI extends BaseIndicator {
 		this.build();
 	}
 
+	setData(rows) {
+		super.setData(rows);
+		const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+		this._previousRSI = lastRow && Number.isFinite(lastRow.rsi) ? lastRow.rsi : null;
+	}
+
 	appendOrUpdate(row, keyFn) {
-		const data = this.primaryLayer && this.primaryLayer.data;
-		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+		const prevRsi = this._previousRSI;
 
 		super.appendOrUpdate(row, keyFn);
 
-		if (prevRow && this.onRowUpdate) {
-			const event = detectRSICross(prevRow, row);
+		if (Number.isFinite(prevRsi) && this.onRowUpdate) {
+			const event = detectRSICross({ rsi: prevRsi }, row);
 			if (event) this.onRowUpdate(event);
 		}
+
+		this._previousRSI = Number.isFinite(row.rsi) ? row.rsi : null;
 	}
 }
 

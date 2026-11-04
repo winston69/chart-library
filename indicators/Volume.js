@@ -80,6 +80,7 @@ export class Volume extends BaseIndicator {
 		} = options;
 
 		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
+		this._previousRow = null;
 
 		this.bars = this.addLayer(
 			new BarChart({
@@ -102,11 +103,18 @@ export class Volume extends BaseIndicator {
 		this.build();
 	}
 
+	setData(rows) {
+		super.setData(rows);
+		this._previousRow = rows.length > 0 ? { ...rows[rows.length - 1] } : null;
+	}
+
 	appendOrUpdate(row, keyFn) {
 		const data = this.primaryLayer && this.primaryLayer.data;
-		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+		const prevRow = this._previousRow;
 		const sameBucket = prevRow && keyFn(prevRow) === keyFn(row);
-		const historyEnd = data ? data.length - (sameBucket ? 1 : 0) : 0;
+		const dataTail = data && data.length > 0 ? data[data.length - 1] : null;
+		const hasCurrentBucket = dataTail && keyFn(dataTail) === keyFn(row);
+		const historyEnd = data ? data.length - (hasCurrentBucket ? 1 : 0) : 0;
 		const historyStart = Math.max(0, historyEnd - DEFAULT_AVERAGE_PERIOD);
 		let totalVolume = 0;
 		let volumeCount = 0;
@@ -126,6 +134,7 @@ export class Volume extends BaseIndicator {
 		super.appendOrUpdate(row, keyFn);
 
 		if (event) this.onRowUpdate(event);
+		this._previousRow = { ...row };
 	}
 }
 

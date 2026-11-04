@@ -102,6 +102,7 @@ export class Bollinger extends BaseIndicator {
 		} = options;
 
 		this.onRowUpdate = typeof onRowUpdate === 'function' ? onRowUpdate : null;
+		this._previousRow = null;
 
 		// ─── Boundary lines (constructed first, added later) ───
 		const lowerLine = new Line({
@@ -173,9 +174,13 @@ export class Bollinger extends BaseIndicator {
 		this.build();
 	}
 
+	setData(rows) {
+		super.setData(rows);
+		this._previousRow = rows.length > 0 ? { ...rows[rows.length - 1] } : null;
+	}
+
 	appendOrUpdate(row, keyFn) {
-		const data = this.primaryLayer && this.primaryLayer.data;
-		const prevRow = data && data.length > 0 ? data[data.length - 1] : null;
+		const prevRow = this._previousRow;
 
 		super.appendOrUpdate(row, keyFn);
 
@@ -183,6 +188,8 @@ export class Bollinger extends BaseIndicator {
 			const event = detectBollingerBreakout(prevRow, row);
 			if (event) this.onRowUpdate(event);
 		}
+
+		this._previousRow = { ...row };
 	}
 }
 

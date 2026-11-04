@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectBollingerBreakout } from '../indicators/Bollinger.js';
+import { Bollinger, detectBollingerBreakout } from '../indicators/Bollinger.js';
 
 test('Bollinger detects upper and lower band breakouts', () => {
 	assert.deepEqual(detectBollingerBreakout(
@@ -39,4 +39,39 @@ test('Bollinger does not report a breakout without a crossing or valid prices', 
 		{ lastPrice: 100, bbUpper: 105 },
 		{ lastPrice: 106, bbUpper: 105 }
 	).type, 'BB_UPPER_BREAKOUT');
+});
+
+test('Bollinger detects same-bucket breakouts after the previous row is mutated', () => {
+	const plane = {
+		resolveYGroup: () => 'price-group',
+		addLayer() {}
+	};
+	const events = [];
+	const bollinger = new Bollinger({
+		plane,
+		showFill: false,
+		showLines: false,
+		onRowUpdate: event => events.push(event)
+	});
+	const rows = [{
+		openTime: 100,
+		eventTime: 1000,
+		lastPrice: 100,
+		bbUpper: 105,
+		bbLower: 95
+	}];
+	bollinger.setData(rows);
+	bollinger.mean.updateLastPoint = row => Object.assign(rows[0], row);
+
+	Object.assign(rows[0], {
+		eventTime: 1001,
+		lastPrice: 106,
+		bbUpper: 105,
+		bbLower: 95
+	});
+	bollinger.appendOrUpdate(rows[0], row => row.openTime);
+
+	assert.equal(events.length, 1);
+	assert.equal(events[0].type, 'BB_UPPER_BREAKOUT');
+	assert.equal(events[0].time, 1001);
 });
