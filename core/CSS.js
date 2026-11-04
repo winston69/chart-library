@@ -256,6 +256,7 @@ export const CSS = {
 		bearish: 'bearish',
 		pulse: 'alert-pulse',
 		time: 'alert-time',
+		icon: 'alert-icon',
 		message: 'alert-message'
 	},
 

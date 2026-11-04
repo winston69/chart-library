@@ -90,6 +90,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 	assert.match(card._elements.list.children[0].children[0].textContent, /^\d{2}:\d{2}:\d{2}$/);
 	assert.equal(card._elements.list.children[0].attributes.has('title'), false);
 	assert.equal(card._elements.list.children[0].children[1].tagName, 'img');
+	assert.equal(card._elements.list.children[0].children[1].className, 'alert-icon');
 	assert.equal(card._elements.list.children[0].children[1].attributes.get('src'), './icons/macd.svg');
 	assert.equal(card._elements.list.children[0].children[1].attributes.get('alt'), 'MACD');
 	assert.equal(card._elements.list.children[0].children[2].textContent, 'Crossed below Signal');

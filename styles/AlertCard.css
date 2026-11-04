@@ -47,8 +47,8 @@
 }
 
 .alert-icon {
-	width: auto;
 	height: 1.2em;
+	width: 1.2em;
 	aspect-ratio: 1 / 1;
 	flex-shrink: 0;
 	object-fit: contain;
