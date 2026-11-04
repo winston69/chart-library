@@ -46,8 +46,9 @@ test('MACD detects bullish and bearish signal crossings', () => {
 		{ openTime: 100, eventTime: 101, macd: 3, macdSignal: 2 }
 	), {
 		type: 'MACD_CROSS_BULLISH',
+		source: 'macd',
 		time: 101,
-		message: 'MACD crossed above Signal'
+		message: 'Crossed above Signal'
 	});
 
 	assert.deepEqual(detectMACDCross(
@@ -55,8 +56,9 @@ test('MACD detects bullish and bearish signal crossings', () => {
 		{ openTime: 200, macd: 1, macdSignal: 2 }
 	), {
 		type: 'MACD_CROSS_BEARISH',
+		source: 'macd',
 		time: 200,
-		message: 'MACD crossed below Signal'
+		message: 'Crossed below Signal'
 	});
 
 	assert.equal(detectMACDCross(
@@ -95,18 +97,21 @@ test('MACD reports a crossover between updates to the same forming bucket', () =
 	assert.deepEqual(events, [
 		{
 			type: 'MACD_INIT',
+			source: 'macd',
 			time: 1000,
-			message: 'MACD ready: 1 / Signal: 2'
+			message: 'Ready: 1 / Signal: 2'
 		},
 		{
 			type: 'MACD_CROSS_BULLISH',
+			source: 'macd',
 			time: 1001,
-			message: 'MACD crossed above Signal'
+			message: 'Crossed above Signal'
 		},
 		{
 			type: 'MACD_CROSS_BEARISH',
+			source: 'macd',
 			time: 1002,
-			message: 'MACD crossed below Signal'
+			message: 'Crossed below Signal'
 		}
 	]);
 });
@@ -129,8 +134,9 @@ test('MACD emits one initial state alert when seeded with rows', () => {
 
 	assert.deepEqual(events, [{
 		type: 'MACD_INIT',
+		source: 'macd',
 		time: 101,
-		message: 'MACD ready: 1.25 / Signal: 0.75'
+		message: 'Ready: 1.25 / Signal: 0.75'
 	}]);
 });
 

@@ -9,6 +9,7 @@ test('Volume detects a crossing above three times the rolling average', () => {
 		20
 	), {
 		type: 'VOLUME_SPIKE',
+		source: 'volume',
 		time: 100,
 		message: 'High volume spike detected.',
 		severity: 'info'

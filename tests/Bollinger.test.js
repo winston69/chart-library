@@ -8,8 +8,9 @@ test('Bollinger detects upper and lower band breakouts', () => {
 		{ openTime: 100, eventTime: 101, lastPrice: 106, bbUpper: 105, bbLower: 95 }
 	), {
 		type: 'BB_UPPER_BREAKOUT',
+		source: 'bollinger',
 		time: 101,
-		message: 'Price broke above Upper Bollinger Band.',
+		message: 'Price broke above Upper Band.',
 		direction: 'bullish',
 		severity: 'info'
 	});
@@ -19,8 +20,9 @@ test('Bollinger detects upper and lower band breakouts', () => {
 		{ openTime: 200, close: 94, bbUpper: 105, bbLower: 95 }
 	), {
 		type: 'BB_LOWER_BREAKOUT',
+		source: 'bollinger',
 		time: 200,
-		message: 'Price broke below Lower Bollinger Band.',
+		message: 'Price broke below Lower Band.',
 		direction: 'bearish',
 		severity: 'warning'
 	});

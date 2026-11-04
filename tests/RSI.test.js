@@ -46,8 +46,9 @@ test('RSI detects overbought and oversold crossings', () => {
 		{ openTime: 100, eventTime: 101, rsi: 71 }
 	), {
 		type: 'RSI_OVERBOUGHT',
+		source: 'rsi',
 		time: 101,
-		message: 'RSI is overbought (>70). Potential pullback.',
+		message: 'Overbought (>70). Potential pullback.',
 		direction: 'bearish',
 		severity: 'warning'
 	});
@@ -57,8 +58,9 @@ test('RSI detects overbought and oversold crossings', () => {
 		{ openTime: 200, rsi: 29 }
 	), {
 		type: 'RSI_OVERSOLD',
+		source: 'rsi',
 		time: 200,
-		message: 'RSI is oversold (<30). Potential bounce.',
+		message: 'Oversold (<30). Potential bounce.',
 		direction: 'bullish',
 		severity: 'info'
 	});

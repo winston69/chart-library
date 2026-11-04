@@ -45,6 +45,7 @@ export function detectVolumeSpike(row, averageVolume, previousVolume = 0) {
 
 	return {
 		type: 'VOLUME_SPIKE',
+		source: 'volume',
 		time: row.openTime,
 		message: 'High volume spike detected.',
 		severity: 'info'

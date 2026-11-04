@@ -42,15 +42,17 @@ export function detectMACDCross(prevRow, row) {
 	if (previousMacd <= previousSignal && macd > signal) {
 		return {
 			type: 'MACD_CROSS_BULLISH',
+			source: 'macd',
 			time: row.eventTime ?? row.openTime,
-			message: 'MACD crossed above Signal'
+			message: 'Crossed above Signal'
 		};
 	}
 	if (previousMacd >= previousSignal && macd < signal) {
 		return {
 			type: 'MACD_CROSS_BEARISH',
+			source: 'macd',
 			time: row.eventTime ?? row.openTime,
-			message: 'MACD crossed below Signal'
+			message: 'Crossed below Signal'
 		};
 	}
 	return null;
@@ -194,8 +196,9 @@ export class MACD extends BaseIndicator {
 		this._hasEmittedInitialAlert = true;
 		this.onRowUpdate({
 			type: 'MACD_INIT',
+			source: 'macd',
 			time: row.eventTime ?? row.openTime,
-			message: `MACD ready: ${row.macd} / Signal: ${row.macdSignal}`
+			message: `Ready: ${row.macd} / Signal: ${row.macdSignal}`
 		});
 	}
 }

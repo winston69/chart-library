@@ -123,9 +123,6 @@ export class AlertCard {
 		const direction = alert.direction
 			|| (alert.type === 'MACD_CROSS_BULLISH' ? 'bullish'
 				: alert.type === 'MACD_CROSS_BEARISH' ? 'bearish' : null);
-		const icon = alert.severity === 'warning' ? '⚠️'
-			: direction === 'bullish' ? '🟢'
-				: direction === 'bearish' ? '🔴' : 'ℹ️';
 		if (direction === 'bullish') item.classList.add(css.bullish);
 		if (direction === 'bearish') item.classList.add(css.bearish);
 		if (pulse) item.classList.add(css.pulse);
@@ -137,9 +134,15 @@ export class AlertCard {
 		time.textContent = formatTimestamp(alert.time, timeFormatter);
 		item.appendChild(time);
 
+		const icon = document.createElement('img');
+		icon.className = css.icon;
+		icon.setAttribute('src', `./icons/${alert.source}.svg`);
+		icon.setAttribute('alt', alert.source ? alert.source.toUpperCase() : 'Indicator');
+		item.appendChild(icon);
+
 		const message = document.createElement('span');
 		message.className = css.message;
-		message.textContent = `${icon} ${fullMessage}`;
+		message.textContent = fullMessage;
 		item.appendChild(message);
 		return item;
 	}

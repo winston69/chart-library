@@ -55,8 +55,9 @@ export function detectBollingerBreakout(prevRow, row) {
 		&& previousPrice <= prevRow.bbUpper && price > row.bbUpper) {
 		return {
 			type: 'BB_UPPER_BREAKOUT',
+			source: 'bollinger',
 			time: row.eventTime ?? row.openTime,
-			message: 'Price broke above Upper Bollinger Band.',
+			message: 'Price broke above Upper Band.',
 			direction: 'bullish',
 			severity: 'info'
 		};
@@ -65,8 +66,9 @@ export function detectBollingerBreakout(prevRow, row) {
 		&& previousPrice >= prevRow.bbLower && price < row.bbLower) {
 		return {
 			type: 'BB_LOWER_BREAKOUT',
+			source: 'bollinger',
 			time: row.eventTime ?? row.openTime,
-			message: 'Price broke below Lower Bollinger Band.',
+			message: 'Price broke below Lower Band.',
 			direction: 'bearish',
 			severity: 'warning'
 		};
