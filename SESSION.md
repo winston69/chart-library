@@ -1,7 +1,7 @@
 # SESSION
 
 Project: multi-band chart library + demo.
-Last update: 2026-10-25.
+Last update: 2026-11-04.
 
 ## Purpose of this file
 
@@ -115,6 +115,31 @@ Indicator computers (worker-side, pure math):
     REST API directly from the browser.
 
 ## Recent cleanups
+
+### Session 2026-11-04
+
+Alert system
+- Added MACD, RSI, Bollinger, and Volume crossover/spike detection.
+- Alerts use `eventTime`, not the bucket's `openTime`.
+- Snapshot prior indicator values before `super.appendOrUpdate()` to
+  avoid shared-array mutation changing the values used for comparisons.
+
+AlertCard UI
+- Replaced text and emoji indicators with source-specific SVG icons
+  from `icons/`.
+- Rows use `[time] [icon] [message]`, with 16px icons and clean spacing.
+- Removed the row's bottom shadow while preserving the established
+  row height and padding.
+
+Trade table
+- Added the Live Trades table with rolling buy/sell quantity averages
+  and volume emoticons (🔥/💧/➖).
+
+Deployment
+- Deployed the API Worker to Cloudflare and the static demo to
+  GitHub Pages.
+- Local development now runs through `wrangler dev`; `server.js`
+  remains available as a fallback.
 
 ### Session 2026-10-26
 
@@ -395,18 +420,19 @@ the row) or `source: 'exact'` (uses `row.notional`).
 
 Priority order:
 
-1. Cloudflare Worker for historical seed. When available, both
-   workers' `seed` mechanism carries real rows. The live worker
-   currently fetches 1000 trades via the local proxy; this
-   should eventually be replaced by a Cloudflare-fetched
-   historical kline payload for deeper history.
-2. `SYMBOL_DECIMALS` sourced from exchange metadata. Currently a
-   constant at the top of `chart-demo.js` (value `2`).
-3. `DEFAULT_START_PRICE` in `chart-demo-feed.js` should match
-   live BTCPHP scale. Check whether the demo feed still starts
-   at a tiny value and bump it if so.
-4. Button-level `showLabels` toggle for the ToolBar (independent
-   of `showGroupLabels`). Deferred until the settings panel exists.
+1. Complete calculator output and state-contract coverage for SMA
+   and VWMA (Roadmap Phase 1).
+2. Finish the layer/API documentation audit, including an ordered
+   layer-addition checklist (Roadmap Phase 2).
+3. Add a button-level `showLabels` toggle for the ToolBar,
+   independent of `showGroupLabels`; deferred until the settings
+   panel exists.
+
+Resolved since the previous update:
+- Cloudflare Worker routes provide real trade and Kline seed data
+  to the live-feed workers.
+- Symbol precision is read from exchange metadata.
+- The demo feed's default start price matches the live BTCPHP scale.
 
 Deferred:
 - Indicator registry, composition class, Chart DSL.

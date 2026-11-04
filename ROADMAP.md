@@ -7,6 +7,11 @@ prioritized and intentionally incremental; each should leave the project usable.
 
 ## Phase 1: Safety Rails (Immediate)
 
+**Status: In progress (2026-11-04).** The Node test harness and
+calculator/registry coverage are in place. Direct output and state-contract
+coverage for the SMA and VWMA calculators remains before this phase meets
+its exit criteria.
+
 Introduce a lightweight test harness for the pure-math indicator computers.
 Keep the initial scope limited to `indicators/*.calc.js` and the worker-side
 registry so tests run in Node without a DOM or third-party dependencies.
@@ -33,6 +38,10 @@ dependencies, covers every existing calculator and the registry contract, and
 fails when a representative output or state-rewind behavior regresses.
 
 ## Phase 2: API Fortification
+
+**Status: In progress (2026-11-04).** The public entry point, API smoke test,
+and indicator contributor guidance are present. The layer/API documentation
+audit and an ordered layer-addition checklist remain open.
 
 Make the package entry point the explicit, documented boundary between
 supported public API and internal implementation details.
@@ -100,6 +109,10 @@ existing plane behavior is preserved, and the plane's remaining
 responsibilities have clear boundaries rather than merely being relocated.
 
 ## Phase 4: Deployment (Cloudflare Worker)
+
+**Status: Complete (2026-11-04).** The Cloudflare API Worker and GitHub Pages
+demo are deployed; local development uses Wrangler to serve the demo and API
+Worker, with `server.js` retained as a fallback.
 
 Deploy the demo as a public site while keeping exchange REST requests behind a
 narrow Cloudflare Worker proxy. The static site and API proxy are separate

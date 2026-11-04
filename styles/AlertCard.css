@@ -24,6 +24,7 @@
 	box-sizing: border-box;
 	display: flex;
 	align-items: center;
+	/* 1 space between columns */
 	gap: 4px;
 	min-height: 1.4em;
 	padding: 0 4px;
@@ -40,8 +41,8 @@
 
 .alert-time {
 	color: rgba(255, 255, 255, 0.72);
-	width: 60px;
-	flex: 0 0 60px;
+	/* Fit to content instead of fixed width */
+	flex: 0 0 auto;
 	white-space: nowrap;
 }
 
@@ -49,6 +50,7 @@
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;
+	display: block;
 	object-fit: contain;
 	color: inherit;
 }
@@ -74,6 +76,11 @@
 }
 
 @keyframes alert-pulse {
-	0% { background: rgba(255, 255, 255, 0.2); }
-	100% { background: transparent; }
+	0% {
+		background: rgba(255, 255, 255, 0.2);
+	}
+
+	100% {
+		background: transparent;
+	}
 }
