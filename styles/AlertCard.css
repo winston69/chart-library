@@ -28,7 +28,6 @@
 	min-height: 1.4em;
 	padding: 0 4px;
 	border-left: 2px solid transparent;
-	box-shadow: inset 0 -1px rgba(255, 255, 255, 0.06);
 }
 
 .alert-item.bullish {
@@ -47,9 +46,8 @@
 }
 
 .alert-icon {
-	height: 1.2em;
-	width: 1.2em;
-	aspect-ratio: 1 / 1;
+	width: 16px;
+	height: 16px;
 	flex-shrink: 0;
 	object-fit: contain;
 	color: inherit;
