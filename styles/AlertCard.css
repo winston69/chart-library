@@ -23,7 +23,7 @@
 .alert-item {
 	box-sizing: border-box;
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	gap: 4px;
 	min-height: 1.4em;
 	padding: 0 4px;
@@ -47,8 +47,9 @@
 }
 
 .alert-icon {
-	width: 14px;
-	height: 14px;
+	width: auto;
+	height: 1.2em;
+	aspect-ratio: 1 / 1;
 	flex-shrink: 0;
 	object-fit: contain;
 	color: inherit;
