@@ -128,8 +128,8 @@ let lastPrice = null;
 const tradeBuffer = [];
 const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
-const buyQuantities = [];
-const sellQuantities = [];
+const buyWindow = [];
+const sellWindow = [];
 let totalTradeCount = 0;
 
 // ─── Outbound tick throttle ───
@@ -151,13 +151,17 @@ function postError(message) {
 }
 
 function resetTradeAverages() {
-	buyQuantities.length = 0;
-	sellQuantities.length = 0;
+	buyWindow.length = 0;
+	sellWindow.length = 0;
 }
 
 function addTradeQuantity(quantities, quantity) {
 	quantities.push(quantity);
 	if (quantities.length > AVERAGE_TRADE_COUNT) quantities.shift();
+}
+
+function addTradeAverage(isBuyerMaker, quantity) {
+	addTradeQuantity(isBuyerMaker ? sellWindow : buyWindow, quantity);
 }
 
 function averageQuantity(quantities) {
@@ -368,13 +372,10 @@ function connect() {
 		if (lastTrade && lastTrade.time === trade.time && lastTrade.price === trade.price) return;
 
 		processTrade(trade);
-		addTradeQuantity(
-			trade.isBuyerMaker ? sellQuantities : buyQuantities,
-			trade.qty
-		);
+		addTradeAverage(trade.isBuyerMaker, trade.qty);
 		totalTradeCount++;
-		const aveBuy = averageQuantity(buyQuantities);
-		const aveSell = averageQuantity(sellQuantities);
+		const aveBuy = averageQuantity(buyWindow);
+		const aveSell = averageQuantity(sellWindow);
 		self.postMessage({
 			type: 'trade',
 			data: {
@@ -694,10 +695,7 @@ async function fetchHistoricalSeed() {
 		for (const trade of sortedTrades) {
 			const quantity = Number(trade.qty);
 			if (!Number.isFinite(quantity) || typeof trade.isBuyerMaker !== 'boolean') continue;
-			addTradeQuantity(
-				trade.isBuyerMaker ? sellQuantities : buyQuantities,
-				quantity
-			);
+			addTradeAverage(trade.isBuyerMaker, quantity);
 		}
 
 		// 2. Feed all trades synchronously to the processor

@@ -69,7 +69,7 @@ export class TradesCard {
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');
 		const headerRow = document.createElement('tr');
-		for (const label of ['Time', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']) {
+		for (const label of ['Time', 'Side', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']) {
 			const header = document.createElement('th');
 			header.scope = 'col';
 			header.textContent = label;
@@ -107,16 +107,18 @@ export class TradesCard {
 			: difference > 0 ? '🔥' : '💧';
 		const cells = [
 			{ value: trade.time },
+			{ value: trade.isBuyerMaker === false ? 'BUY' : 'SELL', className: 'side' },
 			{ value: trade.price, alignment: 'align-right' },
 			{ value: trade.value, alignment: 'align-right' },
 			{ value: trade.aveBuyValue, alignment: 'align-right' },
 			{ value: trade.aveSellValue, alignment: 'align-right' },
 			{ value: signal, alignment: 'align-center' }
 		];
-		for (const { value, alignment } of cells) {
+		for (const { value, alignment, className } of cells) {
 			const cell = document.createElement('td');
 			cell.textContent = value;
 			if (alignment) cell.classList.add(alignment);
+			if (className) cell.classList.add(className);
 			row.appendChild(cell);
 		}
 		return row;

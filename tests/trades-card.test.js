@@ -91,21 +91,24 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 	assert.deepEqual(
 		card._elements.root.children[1].children[0].children[0].children[0].children
 			.map(header => header.textContent),
-		['Time', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']
+		['Time', 'Side', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']
 	);
 	assert.equal(card._elements.tbody.parentNode.parentNode.className, 'card-body');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
 	assert.equal(card._elements.tbody.children[0].classList.contains('sell'), true);
-	assert.equal(card._elements.tbody.children[0].children[3].textContent, '303');
-	assert.equal(card._elements.tbody.children[0].children[4].textContent, '404');
-	assert.equal(card._elements.tbody.children[0].children[5].textContent, '💧');
-	assert.equal(card._elements.tbody.children[0].children[1].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[1].textContent, 'SELL');
+	assert.equal(card._elements.tbody.children[0].children[1].classList.contains('side'), true);
+	assert.equal(card._elements.tbody.children[0].children[4].textContent, '303');
+	assert.equal(card._elements.tbody.children[0].children[5].textContent, '404');
+	assert.equal(card._elements.tbody.children[0].children[6].textContent, '💧');
 	assert.equal(card._elements.tbody.children[0].children[2].classList.contains('align-right'), true);
 	assert.equal(card._elements.tbody.children[0].children[3].classList.contains('align-right'), true);
 	assert.equal(card._elements.tbody.children[0].children[4].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[5].classList.contains('align-center'), true);
+	assert.equal(card._elements.tbody.children[0].children[5].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[6].classList.contains('align-center'), true);
 	assert.equal(card._elements.tbody.children[1].classList.contains('buy'), true);
-	assert.equal(card._elements.tbody.children[1].children[5].textContent, '🔥');
+	assert.equal(card._elements.tbody.children[1].children[1].textContent, 'BUY');
+	assert.equal(card._elements.tbody.children[1].children[6].textContent, '🔥');
 
 	card.addTrade({
 		time: '12:00:02',
@@ -119,7 +122,7 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSellValue: '408',
 		totalCount: 1244
 	});
-	assert.equal(card._elements.tbody.children[0].children[5].textContent, '➖');
+	assert.equal(card._elements.tbody.children[0].children[6].textContent, '➖');
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({

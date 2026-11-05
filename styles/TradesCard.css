@@ -45,23 +45,23 @@
 
 .trades-card th:nth-child(2),
 .trades-card td:nth-child(2) {
-	text-align: right;
+	text-align: center;
+	text-transform: uppercase;
 }
 
 .trades-card th:nth-child(3),
-.trades-card td:nth-child(3) {
-	text-align: right;
-}
-
+.trades-card td:nth-child(3),
 .trades-card th:nth-child(4),
 .trades-card td:nth-child(4),
 .trades-card th:nth-child(5),
-.trades-card td:nth-child(5) {
+.trades-card td:nth-child(5),
+.trades-card th:nth-child(6),
+.trades-card td:nth-child(6) {
 	text-align: right;
 }
 
-.trades-card th:nth-child(6),
-.trades-card td:nth-child(6) {
+.trades-card th:nth-child(7),
+.trades-card td:nth-child(7) {
 	text-align: center;
 }
 
