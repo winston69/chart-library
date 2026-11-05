@@ -210,10 +210,12 @@ function processLiveTrade(trade) {
 		if (trade.qty > mean) signal = '🐋';
 		else if (trade.qty < mean) signal = '💧';
 	} else if (stdDev > 0) {
-		const zScore = (trade.qty - mean) / stdDev;
-		if (zScore > 4) signal = '🐋';
-		else if (zScore > 2) signal = '🔥';
-		else if (zScore < -2) signal = '💧';
+		const upperBand = mean + (2 * stdDev);
+		const whaleBand = mean + (4 * stdDev);
+		const lowerBand = mean - (2 * stdDev);
+		if (trade.qty > whaleBand) signal = '🐋';
+		else if (trade.qty > upperBand) signal = '🔥';
+		else if (trade.qty < lowerBand) signal = '💧';
 	}
 	processTrade(trade);
 	addTradeAverage(trade.isBuyerMaker, trade.qty);
