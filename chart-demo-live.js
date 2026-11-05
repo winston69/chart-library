@@ -130,10 +130,6 @@ const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
 const buyWindow = [];
 const sellWindow = [];
-let buyCount = 0;
-let sumBuyQty = 0;
-let sellCount = 0;
-let sumSellQty = 0;
 let totalTradeCount = 0;
 
 // ─── Outbound tick throttle ───
@@ -157,30 +153,21 @@ function postError(message) {
 function resetTradeAverages() {
 	buyWindow.length = 0;
 	sellWindow.length = 0;
-	buyCount = 0;
-	sumBuyQty = 0;
-	sellCount = 0;
-	sumSellQty = 0;
 }
 
 function addTradeAverage(isBuyerMaker, quantity) {
 	if (isBuyerMaker === false) {
-		if (buyCount === AVERAGE_TRADE_COUNT) {
-			sumBuyQty -= buyWindow.shift();
-			buyCount--;
-		}
 		buyWindow.push(quantity);
-		sumBuyQty += quantity;
-		buyCount++;
+		if (buyWindow.length > AVERAGE_TRADE_COUNT) buyWindow.shift();
 	} else if (isBuyerMaker === true) {
-		if (sellCount === AVERAGE_TRADE_COUNT) {
-			sumSellQty -= sellWindow.shift();
-			sellCount--;
-		}
 		sellWindow.push(quantity);
-		sumSellQty += quantity;
-		sellCount++;
+		if (sellWindow.length > AVERAGE_TRADE_COUNT) sellWindow.shift();
 	}
+}
+
+function averageQuantity(quantities) {
+	if (quantities.length === 0) return 0;
+	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
 }
 
 function countDecimals(stepSize) {
@@ -388,8 +375,8 @@ function connect() {
 		processTrade(trade);
 		addTradeAverage(trade.isBuyerMaker, trade.qty);
 		totalTradeCount++;
-		const aveBuyQty = buyCount > 0 ? sumBuyQty / buyCount : 0;
-		const aveSellQty = sellCount > 0 ? sumSellQty / sellCount : 0;
+		const aveBuyQty = averageQuantity(buyWindow);
+		const aveSellQty = averageQuantity(sellWindow);
 		self.postMessage({
 			type: 'trade',
 			data: {

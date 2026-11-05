@@ -16,7 +16,7 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		isBuyerMaker: false
 	}));
 	const lastRestTradeTime = restTrades.at(-1).time;
-	const websocketTrades = Array.from({ length: 51 }, (_, index) => ({
+	const websocketTrades = Array.from({ length: 60 }, (_, index) => ({
 		price: Number(restTrades.at(-1).price) + index + 1,
 		qty: index + 1,
 		time: lastRestTradeTime + index + 1,
@@ -24,21 +24,21 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	}));
 	websocketTrades.push(
 		{
-			price: Number(restTrades.at(-1).price) + 52,
+			price: Number(restTrades.at(-1).price) + 61,
 			qty: 8,
-			time: lastRestTradeTime + 52,
+			time: lastRestTradeTime + 61,
 			isBuyerMaker: true
 		},
 		{
-			price: Number(restTrades.at(-1).price) + 53,
+			price: Number(restTrades.at(-1).price) + 62,
 			qty: 3,
-			time: lastRestTradeTime + 53,
+			time: lastRestTradeTime + 62,
 			isBuyerMaker: false
 		},
 		{
-			price: Number(restTrades.at(-1).price) + 54,
+			price: Number(restTrades.at(-1).price) + 63,
 			qty: 5,
-			time: lastRestTradeTime + 54,
+			time: lastRestTradeTime + 63,
 			isBuyerMaker: false
 		}
 	);
@@ -133,20 +133,21 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			messages.find(message => message.type === 'trade').data.aveSell,
 			messages.filter(message => message.type === 'trade')[49].data.aveBuy,
 			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
-			messages.filter(message => message.type === 'trade')[51].data.aveSell,
-			messages.filter(message => message.type === 'trade')[52].data.aveSell,
+			messages.filter(message => message.type === 'trade')[59].data.aveBuy,
+			messages.filter(message => message.type === 'trade')[60].data.aveSell,
+			messages.filter(message => message.type === 'trade')[61].data.aveSell,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveBuy,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveSell,
 			messages.find(message => message.type === 'trade').data.aveBuyValue,
-			messages.filter(message => message.type === 'trade')[51].data.aveSellValue,
+			messages.filter(message => message.type === 'trade')[60].data.aveSellValue,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveSellValue,
 			messages.find(message => message.type === 'trade').data.totalCount,
 			messages.filter(message => message.type === 'trade').at(-1).data.totalCount
 		],
 		[
-			54, 9.82, 0, 25.5, 26.5, 8, 8, 26.56, 8,
-			9.82 * 110.99, 8 * 161.99, 8 * 163.99, 1001, 1054
+			63, 9.82, 0, 25.5, 26.5, 35.5, 8, 8, 35.2, 8,
+			9.82 * 110.99, 8 * 170.99, 8 * 172.99, 1001, 1063
 		],
-		'BUY trades should not change the SELL quantity average, while notional values use each current price'
+		'60 BUYs should retain only quantities 11 through 60, and SELL averages should remain isolated'
 	);
 });
