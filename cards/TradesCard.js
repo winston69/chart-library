@@ -102,9 +102,11 @@ export class TradesCard {
 		const average = trade.isBuyerMaker ? trade.aveSell : trade.aveBuy;
 		const difference = trade.qty - average;
 		const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
-		const signal = Math.abs(difference) <= tolerance
-			? '➖'
-			: difference > 0 ? '🔥' : '💧';
+		const signal = trade.sig === '🐋'
+			? trade.sig
+			: Math.abs(difference) <= tolerance
+				? '➖'
+				: difference > 0 ? '🔥' : '💧';
 		const cells = [
 			{ value: trade.time },
 			{ value: trade.isBuyerMaker === false ? 'BUY' : 'SELL', className: 'side' },

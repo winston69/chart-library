@@ -194,6 +194,9 @@ function processLiveTrade(trade) {
 		|| (lastTrade.time === trade.time && lastTrade.price === trade.price)
 	)) return;
 
+	const sideWindow = trade.isBuyerMaker ? sellWindow : buyWindow;
+	const sideAverage = averageQuantity(sideWindow);
+	const isWhale = sideAverage > 0 && trade.qty > sideAverage * 10;
 	processTrade(trade);
 	addTradeAverage(trade.isBuyerMaker, trade.qty);
 	totalTradeCount++;
@@ -207,16 +210,21 @@ function processLiveTrade(trade) {
 			aveSell: aveSellQty,
 			aveBuyValue: aveBuyQty * trade.price,
 			aveSellValue: aveSellQty * trade.price,
+			sig: isWhale ? '🐋' : null,
 			totalCount: totalTradeCount
 		}
 	});
 }
 
 function replayPendingTrades() {
+	while (pendingTrades.length > 0) {
+		const trade = pendingTrades.shift();
+		const idKey = tradeIdKey(trade.id);
+		if (idKey !== null) pendingTradeIds.delete(idKey);
+		processLiveTrade(trade);
+	}
 	isSeeding = false;
-	const trades = pendingTrades.splice(0);
 	pendingTradeIds.clear();
-	for (const trade of trades) processLiveTrade(trade);
 }
 
 function countDecimals(stepSize) {

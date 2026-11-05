@@ -120,9 +120,10 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 4,
 		aveBuyValue: '306',
 		aveSellValue: '408',
-		totalCount: 1244
+		totalCount: 1244,
+		sig: '🐋'
 	});
-	assert.equal(card._elements.tbody.children[0].children[6].textContent, '➖');
+	assert.equal(card._elements.tbody.children[0].children[6].textContent, '🐋');
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({

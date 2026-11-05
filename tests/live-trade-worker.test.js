@@ -93,6 +93,14 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	});
 
 	await import(`../chart-demo-live.js?test=${Date.now()}`);
+	let sendTrade;
+	const whaleTrade = {
+		id: 1001,
+		price: 112,
+		qty: 200,
+		time: lastRestTradeTime + 2,
+		isBuyerMaker: false
+	};
 	const seedPromise = new Promise((resolve, reject) => {
 		const timer = setTimeout(() => reject(new Error('Timed out waiting for trade seed')), 5000);
 		self.postMessage = message => {
@@ -100,6 +108,9 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			if (message.type === 'seed' && message.data.length > 0) {
 				clearTimeout(timer);
 				resolve(message.data);
+			}
+			if (message.type === 'trade' && message.data.id === 1000) {
+				sendTrade(whaleTrade);
 			}
 		};
 	});
@@ -116,7 +127,7 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	self.onmessage({ data: { type: 'start' } });
 
 	await tradesRequestStarted;
-	const sendTrade = trade => socket.onmessage({
+	sendTrade = trade => socket.onmessage({
 		data: JSON.stringify({
 			e: 'trade',
 			t: trade.id,
@@ -152,16 +163,19 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		rows.map(row => row.openTime).toSorted((a, b) => a - b)
 	);
 	const liveMessages = messages.filter(message => message.type === 'trade');
-	assert.equal(liveMessages.length, 1, 'seed-overlap trades should be dropped and the new queued trade replayed');
+	assert.equal(liveMessages.length, 2, 'seed-overlap trades should be dropped and trades queued during replay should be processed');
 	assert.deepEqual(
 		[
 			liveMessages[0].data.id,
 			liveMessages[0].data.totalCount,
 			liveMessages[0].data.aveBuy,
-			liveMessages[0].data.aveSell
+			liveMessages[0].data.aveSell,
+			liveMessages[1].data.id,
+			liveMessages[1].data.aveBuy,
+			liveMessages[1].data.sig
 		],
-		[1000, 1001, 10, 8],
-		'the first replayed SELL should retain the seeded BUY average'
+		[1000, 1001, 10, 8, 1001, 13.8, '🐋'],
+		'the replay should retain seed averages and include whale trades in the BUY window'
 	);
 
 	for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
@@ -173,15 +187,14 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		[
 			allLiveMessages.length,
 			allLiveMessages[0].data.totalCount,
-			allLiveMessages[1].data.aveBuy,
-			allLiveMessages[50].data.aveBuy,
-			allLiveMessages[60].data.aveBuy,
-			allLiveMessages[61].data.aveSell,
+			allLiveMessages[2].data.aveBuy,
+			allLiveMessages[61].data.aveBuy,
+			allLiveMessages[62].data.aveSell,
 			allLiveMessages.at(-1).data.aveBuy,
 			allLiveMessages.at(-1).data.aveSell,
 			allLiveMessages.at(-1).data.totalCount
 		],
-		[64, 1001, 9.82, 25.5, 35.5, 8, 35.2, 8, 1064],
+		[65, 1001, 13.62, 35.5, 8, 35.2, 8, 1065],
 		'60 BUYs should retain only quantities 11 through 60, and SELL averages should remain isolated'
 	);
 });

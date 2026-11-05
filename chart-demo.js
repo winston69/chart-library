@@ -660,6 +660,7 @@ function handleLiveMessage(evt, source) {
 				aveSell: trade.aveSell,
 				aveBuyValue: formatNumber(trade.aveBuyValue, SYMBOL_DECIMALS),
 				aveSellValue: formatNumber(trade.aveSellValue, SYMBOL_DECIMALS),
+				sig: trade.sig,
 				totalCount: trade.totalCount
 			});
 			break;
