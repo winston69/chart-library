@@ -371,12 +371,16 @@ function connect() {
 			trade.isBuyerMaker ? sellQuantities : buyQuantities,
 			trade.qty
 		);
+		const aveBuy = averageQuantity(buyQuantities);
+		const aveSell = averageQuantity(sellQuantities);
 		self.postMessage({
 			type: 'trade',
 			data: {
 				...trade,
-				aveBuy: averageQuantity(buyQuantities),
-				aveSell: averageQuantity(sellQuantities)
+				aveBuy,
+				aveSell,
+				aveBuyValue: aveBuy * trade.price,
+				aveSellValue: aveSell * trade.price
 			}
 		});
 	};

@@ -8,7 +8,8 @@ export class TradesCard {
 		this.visible = options.visible !== false;
 		this._elements = {
 			root: null,
-			tbody: null
+			tbody: null,
+			title: null
 		};
 		this._trades = [];
 	}
@@ -30,11 +31,13 @@ export class TradesCard {
 		if (tbody.children.length > MAX_TRADES) {
 			tbody.removeChild(tbody.lastChild);
 		}
+		this._updateTitle();
 	}
 
 	clear() {
 		this._trades = [];
 		if (this._elements.tbody) this._elements.tbody.replaceChildren();
+		this._updateTitle();
 	}
 
 	setVisible(visible) {
@@ -45,7 +48,7 @@ export class TradesCard {
 	destroy() {
 		const root = this._elements.root;
 		if (root && root.parentNode) root.parentNode.removeChild(root);
-		this._elements = { root: null, tbody: null };
+		this._elements = { root: null, tbody: null, title: null };
 	}
 
 	_createContent() {
@@ -54,7 +57,7 @@ export class TradesCard {
 
 		const title = document.createElement('div');
 		title.className = CSS.cardTitle;
-		title.textContent = 'Live Trades';
+		title.textContent = 'Trades (0)';
 		root.appendChild(title);
 
 		const body = document.createElement('div');
@@ -62,7 +65,7 @@ export class TradesCard {
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');
 		const headerRow = document.createElement('tr');
-		for (const label of ['Time', 'Price', 'Value', 'Sig']) {
+		for (const label of ['Time', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']) {
 			const header = document.createElement('th');
 			header.scope = 'col';
 			header.textContent = label;
@@ -76,9 +79,16 @@ export class TradesCard {
 		body.appendChild(table);
 		root.appendChild(body);
 
-		this._elements = { root, tbody };
+		this._elements = { root, tbody, title };
+		this._updateTitle();
 		for (let i = this._trades.length - 1; i >= 0; i--) {
 			tbody.insertBefore(this._createRow(this._trades[i]), tbody.firstChild);
+		}
+	}
+
+	_updateTitle() {
+		if (this._elements.title) {
+			this._elements.title.textContent = `Trades (${this._trades.length})`;
 		}
 	}
 
@@ -95,6 +105,8 @@ export class TradesCard {
 			{ value: trade.time },
 			{ value: trade.price, alignment: 'align-right' },
 			{ value: trade.value, alignment: 'align-right' },
+			{ value: trade.aveBuyValue, alignment: 'align-right' },
+			{ value: trade.aveSellValue, alignment: 'align-right' },
 			{ value: signal, alignment: 'align-center' }
 		];
 		for (const { value, alignment } of cells) {

@@ -120,9 +120,11 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			messages.find(message => message.type === 'trade').data.aveBuy,
 			messages.filter(message => message.type === 'trade')[49].data.aveBuy,
 			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
-			messages.filter(message => message.type === 'trade').at(-1).data.aveSell
+			messages.filter(message => message.type === 'trade').at(-1).data.aveSell,
+			messages.find(message => message.type === 'trade').data.aveBuyValue,
+			messages.filter(message => message.type === 'trade').at(-1).data.aveSellValue
 		],
-		[52, 9.82, 25.5, 26.5, 8],
-		'trade averages should seed from REST history and then roll with unique WebSocket trades'
+		[52, 9.82, 25.5, 26.5, 8, 9.82 * 110.99, 8 * 161.99],
+		'trade averages and notional values should seed from REST history and roll with unique WebSocket trades'
 	);
 });

@@ -68,7 +68,9 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		isBuyerMaker: false,
 		qty: 5,
 		aveBuy: 3,
-		aveSell: 0
+		aveSell: 0,
+		aveBuyValue: '300',
+		aveSellValue: '0'
 	});
 	card.addTrade({
 		time: '12:00:01',
@@ -77,20 +79,31 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		isBuyerMaker: true,
 		qty: 2,
 		aveBuy: 3,
-		aveSell: 4
+		aveSell: 4,
+		aveBuyValue: '303',
+		aveSellValue: '404'
 	});
 
 	assert.equal(card._elements.root.children[0].className, 'card-title');
-	assert.equal(card._elements.root.children[0].textContent, 'Live Trades');
+	assert.equal(card._elements.root.children[0].textContent, 'Trades (2)');
+	assert.deepEqual(
+		card._elements.root.children[1].children[0].children[0].children[0].children
+			.map(header => header.textContent),
+		['Time', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']
+	);
 	assert.equal(card._elements.tbody.parentNode.parentNode.className, 'card-body');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
 	assert.equal(card._elements.tbody.children[0].classList.contains('sell'), true);
-	assert.equal(card._elements.tbody.children[0].children[3].textContent, '💧');
+	assert.equal(card._elements.tbody.children[0].children[3].textContent, '303');
+	assert.equal(card._elements.tbody.children[0].children[4].textContent, '404');
+	assert.equal(card._elements.tbody.children[0].children[5].textContent, '💧');
 	assert.equal(card._elements.tbody.children[0].children[1].classList.contains('align-right'), true);
 	assert.equal(card._elements.tbody.children[0].children[2].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[3].classList.contains('align-center'), true);
+	assert.equal(card._elements.tbody.children[0].children[3].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[4].classList.contains('align-right'), true);
+	assert.equal(card._elements.tbody.children[0].children[5].classList.contains('align-center'), true);
 	assert.equal(card._elements.tbody.children[1].classList.contains('buy'), true);
-	assert.equal(card._elements.tbody.children[1].children[3].textContent, '🔥');
+	assert.equal(card._elements.tbody.children[1].children[5].textContent, '🔥');
 
 	card.addTrade({
 		time: '12:00:02',
@@ -99,9 +112,11 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		isBuyerMaker: false,
 		qty: 3,
 		aveBuy: 3,
-		aveSell: 4
+		aveSell: 4,
+		aveBuyValue: '306',
+		aveSellValue: '408'
 	});
-	assert.equal(card._elements.tbody.children[0].children[3].textContent, '➖');
+	assert.equal(card._elements.tbody.children[0].children[5].textContent, '➖');
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({
@@ -111,14 +126,18 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 			isBuyerMaker: false,
 			qty: 1,
 			aveBuy: 1,
-			aveSell: 1
+			aveSell: 1,
+			aveBuyValue: '1',
+			aveSellValue: '1'
 		});
 	}
 
 	assert.equal(card._elements.tbody.children.length, 50);
+	assert.equal(card._elements.root.children[0].textContent, 'Trades (50)');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
 	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
 
 	card.clear();
 	assert.equal(card._elements.tbody.children.length, 0);
+	assert.equal(card._elements.root.children[0].textContent, 'Trades (0)');
 });

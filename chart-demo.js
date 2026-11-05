@@ -644,7 +644,8 @@ function handleLiveMessage(evt, source) {
 			if (!trade || !Number.isFinite(trade.time)
 				|| !Number.isFinite(trade.price) || !Number.isFinite(trade.qty)
 				|| typeof trade.isBuyerMaker !== 'boolean'
-				|| !Number.isFinite(trade.aveBuy) || !Number.isFinite(trade.aveSell)) {
+				|| !Number.isFinite(trade.aveBuy) || !Number.isFinite(trade.aveSell)
+				|| !Number.isFinite(trade.aveBuyValue) || !Number.isFinite(trade.aveSellValue)) {
 				console.error('[live feed] received malformed trade message', trade);
 				break;
 			}
@@ -655,7 +656,9 @@ function handleLiveMessage(evt, source) {
 				isBuyerMaker: trade.isBuyerMaker,
 				qty: trade.qty,
 				aveBuy: trade.aveBuy,
-				aveSell: trade.aveSell
+				aveSell: trade.aveSell,
+				aveBuyValue: formatNumber(trade.aveBuyValue, SYMBOL_DECIMALS),
+				aveSellValue: formatNumber(trade.aveSellValue, SYMBOL_DECIMALS)
 			});
 			break;
 		}
