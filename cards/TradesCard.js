@@ -99,14 +99,7 @@ export class TradesCard {
 	_createRow(trade) {
 		const row = document.createElement('tr');
 		row.classList.add(trade.isBuyerMaker === false ? 'buy' : 'sell');
-		const average = trade.isBuyerMaker ? trade.aveSell : trade.aveBuy;
-		const difference = trade.qty - average;
-		const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
-		const signal = trade.sig === '🐋'
-			? trade.sig
-			: Math.abs(difference) <= tolerance
-				? '➖'
-				: difference > 0 ? '🔥' : '💧';
+		const signal = Array.isArray(trade.sig) ? trade.sig.join('') : '';
 		const cells = [
 			{ value: trade.time },
 			{ value: trade.isBuyerMaker === false ? 'BUY' : 'SELL', className: 'side' },

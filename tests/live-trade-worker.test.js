@@ -172,9 +172,10 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			liveMessages[0].data.aveSell,
 			liveMessages[1].data.id,
 			liveMessages[1].data.aveBuy,
-			liveMessages[1].data.sig
+			liveMessages[1].data.sig,
+			liveMessages[0].data.sig
 		],
-		[1000, 1001, 10, 8, 1001, 13.8, '🐋'],
+		[1000, 1001, 10, 8, 1001, 13.8, ['🔥', '🐋'], ['➖']],
 		'the replay should retain seed averages and include whale trades in the BUY window'
 	);
 

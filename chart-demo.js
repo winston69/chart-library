@@ -335,8 +335,21 @@ const alertCard = new AlertCard({
 	visible: true
 });
 
+let lastIndicatorSignal = null;
+const indicatorSignalEmojis = {
+	MACD_CROSS_BULLISH: '📈',
+	MACD_CROSS_BEARISH: '📉',
+	BB_UPPER_BREAKOUT: '📈',
+	BB_LOWER_BREAKOUT: '📉',
+	RSI_OVERBOUGHT: '⚠️',
+	RSI_OVERSOLD: '⚠️',
+	VOLUME_SPIKE: '🔥'
+};
+
 function handleIndicatorAlert(event) {
 	alertCard.addAlert(event);
+	const emoji = indicatorSignalEmojis[event.type];
+	if (emoji) lastIndicatorSignal = { time: Date.now(), emoji };
 }
 
 const indicatorFactories = {
@@ -650,6 +663,11 @@ function handleLiveMessage(evt, source) {
 				console.error('[live feed] received malformed trade message', trade);
 				break;
 			}
+			const sig = Array.isArray(trade.sig) ? [...trade.sig] : [];
+			if (lastIndicatorSignal
+				&& Math.abs(lastIndicatorSignal.time - trade.time) <= 1000) {
+				sig.push(lastIndicatorSignal.emoji);
+			}
 			tradesCard.addTrade({
 				time: tradeTimeFormatter.format(trade.time),
 				price: formatNumber(trade.price, SYMBOL_DECIMALS),
@@ -660,7 +678,7 @@ function handleLiveMessage(evt, source) {
 				aveSell: trade.aveSell,
 				aveBuyValue: formatNumber(trade.aveBuyValue, SYMBOL_DECIMALS),
 				aveSellValue: formatNumber(trade.aveSellValue, SYMBOL_DECIMALS),
-				sig: trade.sig,
+				sig,
 				totalCount: trade.totalCount
 			});
 			break;

@@ -202,6 +202,13 @@ function processLiveTrade(trade) {
 	totalTradeCount++;
 	const aveBuyQty = averageQuantity(buyWindow);
 	const aveSellQty = averageQuantity(sellWindow);
+	const average = trade.isBuyerMaker ? aveSellQty : aveBuyQty;
+	const difference = trade.qty - average;
+	const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
+	const sig = [Math.abs(difference) <= tolerance
+		? '➖'
+		: difference > 0 ? '🔥' : '💧'];
+	if (isWhale) sig.push('🐋');
 	self.postMessage({
 		type: 'trade',
 		data: {
@@ -210,7 +217,7 @@ function processLiveTrade(trade) {
 			aveSell: aveSellQty,
 			aveBuyValue: aveBuyQty * trade.price,
 			aveSellValue: aveSellQty * trade.price,
-			sig: isWhale ? '🐋' : null,
+			sig,
 			totalCount: totalTradeCount
 		}
 	});

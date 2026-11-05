@@ -71,7 +71,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 0,
 		aveBuyValue: '300',
 		aveSellValue: '0',
-		totalCount: 1242
+		totalCount: 1242,
+		sig: ['🔥']
 	});
 	card.addTrade({
 		time: '12:00:01',
@@ -83,7 +84,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 4,
 		aveBuyValue: '303',
 		aveSellValue: '404',
-		totalCount: 1243
+		totalCount: 1243,
+		sig: ['💧']
 	});
 
 	assert.equal(card._elements.root.children[0].className, 'card-title');
@@ -121,9 +123,9 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveBuyValue: '306',
 		aveSellValue: '408',
 		totalCount: 1244,
-		sig: '🐋'
+		sig: ['🔥', '🐋']
 	});
-	assert.equal(card._elements.tbody.children[0].children[6].textContent, '🐋');
+	assert.equal(card._elements.tbody.children[0].children[6].textContent, '🔥🐋');
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({
@@ -136,7 +138,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 			aveSell: 1,
 			aveBuyValue: '1',
 			aveSellValue: '1',
-			totalCount: 1245 + index
+			totalCount: 1245 + index,
+			sig: ['➖']
 		});
 	}
 
