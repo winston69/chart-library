@@ -175,7 +175,7 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			liveMessages[1].data.sig,
 			liveMessages[0].data.sig
 		],
-		[1000, 1001, 10, 8, 1001, 13.8, ['🔥', '🐋'], ['➖']],
+		[1000, 1001, 10, 8, 1001, 13.8, ['🐋'], ['➖']],
 		'the replay should retain seed averages and include whale trades in the BUY window'
 	);
 
@@ -198,4 +198,101 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		[65, 1001, 13.62, 35.5, 8, 35.2, 8, 1065],
 		'60 BUYs should retain only quantities 11 through 60, and SELL averages should remain isolated'
 	);
+});
+
+test('uses Z-scores for volume signals and handles zero-variance windows', async t => {
+	const globals = ['self', 'WebSocket', 'fetch'];
+	const descriptors = new Map(globals.map(name => [
+		name,
+		Object.getOwnPropertyDescriptor(globalThis, name)
+	]));
+	let socket;
+	const messages = [];
+	const restTrades = Array.from({ length: 100 }, (_, index) => ({
+		id: index,
+		price: '100',
+		qty: '10',
+		time: Date.now() - 100000 + index,
+		isBuyerMaker: false
+	}));
+	globalThis.self = {
+		location: { origin: 'http://localhost:8787' },
+		onmessage: null,
+		postMessage: message => messages.push(message)
+	};
+	globalThis.WebSocket = class {
+		static OPEN = 1;
+		readyState = 1;
+		constructor() { socket = this; }
+		send() {}
+		close() {}
+	};
+	globalThis.fetch = async url => {
+		if (String(url).includes('/api/symbol-info')) {
+			return Response.json({
+				symbols: [{
+					symbol: 'BTCPHP',
+					status: 'trading',
+					filters: [
+						{ filterType: 'PRICE_FILTER', tickSize: '0.01' },
+						{ filterType: 'LOT_SIZE', stepSize: '0.001' }
+					]
+				}]
+			});
+		}
+		return Response.json(restTrades);
+	};
+
+	t.after(() => {
+		for (const [name, descriptor] of descriptors) {
+			if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+			else delete globalThis[name];
+		}
+	});
+
+	await import(`../chart-demo-live.js?zscore-test=${Date.now()}`);
+	self.onmessage({ data: {
+		type: 'config',
+		apiBase: 'http://localhost:8787',
+		bucketMs: 60000,
+		windowMs: 24 * 60 * 60 * 1000,
+		maxData: 7 * 24 * 60 * 60 * 1000,
+		eventTimeField: 'eventTime',
+		indicators: ['macd']
+	} });
+	self.onmessage({ data: { type: 'start' } });
+
+	await new Promise((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error('Timed out waiting for trade seed')), 5000);
+		const checkSeed = message => {
+			if (message.type === 'seed') {
+				clearTimeout(timer);
+				resolve();
+			}
+		};
+		self.postMessage = message => {
+			messages.push(message);
+			checkSeed(message);
+		};
+	});
+
+	const sendTrade = (id, qty) => socket.onmessage({
+		data: JSON.stringify({
+			e: 'trade',
+			t: id,
+			p: '100',
+			q: String(qty),
+			T: Date.now() + id,
+			m: false
+		})
+	});
+	sendTrade(101, 10);
+	sendTrade(102, 10);
+	sendTrade(103, 10);
+	sendTrade(104, 1000);
+
+	const signals = messages
+		.filter(message => message.type === 'trade')
+		.map(message => message.data.sig);
+	assert.deepEqual(signals, [['➖'], ['➖'], ['➖'], ['🐋']]);
 });

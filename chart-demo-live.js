@@ -173,6 +173,15 @@ function averageQuantity(quantities) {
 	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
 }
 
+function calculateStats(window) {
+	if (window.length === 0) return { mean: 0, stdDev: 0 };
+	const mean = averageQuantity(window);
+	const variance = window.reduce((total, quantity) => (
+		total + (quantity - mean) ** 2
+	), 0) / window.length;
+	return { mean, stdDev: Math.sqrt(variance) };
+}
+
 function tradeIdKey(id) {
 	return id === undefined || id === null ? null : String(id);
 }
@@ -195,20 +204,22 @@ function processLiveTrade(trade) {
 	)) return;
 
 	const sideWindow = trade.isBuyerMaker ? sellWindow : buyWindow;
-	const sideAverage = averageQuantity(sideWindow);
-	const isWhale = sideAverage > 0 && trade.qty > sideAverage * 10;
+	const { mean, stdDev } = calculateStats(sideWindow);
+	let signal = '➖';
+	if (sideWindow.length > 0 && stdDev === 0) {
+		if (trade.qty > mean) signal = '🐋';
+		else if (trade.qty < mean) signal = '💧';
+	} else if (stdDev > 0) {
+		const zScore = (trade.qty - mean) / stdDev;
+		if (zScore > 4) signal = '🐋';
+		else if (zScore > 2) signal = '🔥';
+		else if (zScore < -2) signal = '💧';
+	}
 	processTrade(trade);
 	addTradeAverage(trade.isBuyerMaker, trade.qty);
 	totalTradeCount++;
 	const aveBuyQty = averageQuantity(buyWindow);
 	const aveSellQty = averageQuantity(sellWindow);
-	const average = trade.isBuyerMaker ? aveSellQty : aveBuyQty;
-	const difference = trade.qty - average;
-	const tolerance = Number.EPSILON * Math.max(1, Math.abs(trade.qty), Math.abs(average)) * 4;
-	const sig = [Math.abs(difference) <= tolerance
-		? '➖'
-		: difference > 0 ? '🔥' : '💧'];
-	if (isWhale) sig.push('🐋');
 	self.postMessage({
 		type: 'trade',
 		data: {
@@ -217,7 +228,7 @@ function processLiveTrade(trade) {
 			aveSell: aveSellQty,
 			aveBuyValue: aveBuyQty * trade.price,
 			aveSellValue: aveSellQty * trade.price,
-			sig,
+			sig: [signal],
 			totalCount: totalTradeCount
 		}
 	});
