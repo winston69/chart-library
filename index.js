@@ -61,3 +61,4 @@ export { Checklist } from './ui/Checklist.js';
 export { ToolBar } from './ui/ToolBar.js';
 export { ToolTip } from './ui/ToolTip.js';
 export { Loader } from './ui/Loader.js';
+export { RatioBar } from './ui/RatioBar.js';

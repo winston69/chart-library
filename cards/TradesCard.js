@@ -1,5 +1,6 @@
 import { CSS } from '../core/CSS.js';
 import { formatNumber } from '../utils/Format.js';
+import { RatioBar } from '../ui/RatioBar.js';
 
 const MAX_TRADES = 50;
 const SIGNAL_WINDOW_MINS = 15;
@@ -22,8 +23,7 @@ export class TradesCard {
 			tbody: null,
 			title: null,
 			totalCount: null,
-			buyCount: null,
-			sellCount: null
+			titleRatio: null
 		};
 		this._trades = [];
 		this._totalCount = 0;
@@ -76,8 +76,7 @@ export class TradesCard {
 			tbody: null,
 			title: null,
 			totalCount: null,
-			buyCount: null,
-			sellCount: null
+			titleRatio: null
 		};
 	}
 
@@ -97,17 +96,10 @@ export class TradesCard {
 		const windowLabel = document.createElement('span');
 		windowLabel.className = 'window-label';
 		windowLabel.textContent = `${SIGNAL_WINDOW_MINS}m:`;
-		const buyCount = document.createElement('span');
-		buyCount.className = 'buy-bar';
-		const separator = document.createElement('span');
-		separator.className = 'window-separator';
-		separator.textContent = '|';
-		const sellCount = document.createElement('span');
-		sellCount.className = 'sell-bar';
+		const titleRatio = document.createElement('span');
+		titleRatio.className = 'window-ratio';
 		windowStats.appendChild(windowLabel);
-		windowStats.appendChild(buyCount);
-		windowStats.appendChild(separator);
-		windowStats.appendChild(sellCount);
+		windowStats.appendChild(titleRatio);
 		title.appendChild(windowStats);
 		root.appendChild(title);
 
@@ -116,7 +108,7 @@ export class TradesCard {
 		const table = document.createElement('table');
 		const thead = document.createElement('thead');
 		const headerRow = document.createElement('tr');
-		for (const label of ['Time', 'Side', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']) {
+		for (const label of ['Time', 'Side', 'Price', 'Value', 'B/S Ratio', 'Sig']) {
 			const header = document.createElement('th');
 			header.scope = 'col';
 			header.textContent = label;
@@ -130,7 +122,7 @@ export class TradesCard {
 		body.appendChild(table);
 		root.appendChild(body);
 
-		this._elements = { root, tbody, title, totalCount, buyCount, sellCount };
+		this._elements = { root, tbody, title, totalCount, titleRatio };
 		this._updateTitle();
 		for (let i = this._trades.length - 1; i >= 0; i--) {
 			tbody.insertBefore(this._createRow(this._trades[i]), tbody.firstChild);
@@ -140,10 +132,10 @@ export class TradesCard {
 	_updateTitle() {
 		if (this._elements.title) {
 			this._elements.totalCount.textContent = formatNumber(this._totalCount, 0);
-			this._elements.buyCount.textContent = String(this._buyCount);
-			this._elements.sellCount.textContent = String(this._sellCount);
-			this._elements.buyCount.style.flexGrow = String(this._buyCount);
-			this._elements.sellCount.style.flexGrow = String(this._sellCount);
+			this._elements.titleRatio.innerHTML = RatioBar({
+				leftValue: this._buyCount,
+				rightValue: this._sellCount
+			});
 		}
 	}
 
@@ -155,13 +147,19 @@ export class TradesCard {
 			{ value: trade.isBuyerMaker === false ? 'BUY' : 'SELL', className: 'side' },
 			{ value: trade.price, alignment: 'align-right' },
 			{ value: trade.value, alignment: 'align-right' },
-			{ value: trade.aveBuyValue, alignment: 'align-right' },
-			{ value: trade.aveSellValue, alignment: 'align-right' },
+			{
+				ratio: {
+					leftValue: trade.aveBuyValue,
+					rightValue: trade.aveSellValue
+				}
+			},
 			{ signals: Array.isArray(trade.sig) ? trade.sig : [], alignment: 'align-center' }
 		];
-		for (const { value, signals, alignment, className } of cells) {
+		for (const { value, ratio, signals, alignment, className } of cells) {
 			const cell = document.createElement('td');
-			if (signals) {
+			if (ratio) {
+				cell.innerHTML = RatioBar(ratio);
+			} else if (signals) {
 				for (const emoji of signals) {
 					const signal = document.createElement('span');
 					signal.textContent = emoji;

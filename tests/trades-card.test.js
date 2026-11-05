@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TradesCard } from '../cards/TradesCard.js';
+import { RatioBar } from '../ui/RatioBar.js';
 
 class Element {
 	constructor(tagName) {
@@ -8,6 +9,7 @@ class Element {
 		this.children = [];
 		this.textContent = '';
 		this.className = '';
+		this.innerHTML = '';
 		this.attributes = new Map();
 		this.classNames = new Set();
 		this.style = {};
@@ -104,15 +106,13 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 
 	assert.equal(card._elements.root.children[0].className, 'card-title trades-title');
 	assert.equal(card._elements.totalCount.textContent, '1,243');
-	assert.equal(card._elements.root.children[0].children[2].children[0].textContent, '15m:');
-	assert.equal(card._elements.buyCount.textContent, '1');
-	assert.equal(card._elements.sellCount.textContent, '1');
-	assert.equal(card._elements.buyCount.style.flexGrow, '1');
-	assert.equal(card._elements.sellCount.style.flexGrow, '1');
+	const windowStats = card._elements.root.children[0].children[2];
+	assert.equal(windowStats.children[0].textContent, '15m:');
+	assert.match(card._elements.titleRatio.innerHTML, /class="ratio-bar"/);
 	assert.deepEqual(
 		card._elements.root.children[1].children[0].children[0].children[0].children
 			.map(header => header.textContent),
-		['Time', 'Side', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']
+		['Time', 'Side', 'Price', 'Value', 'B/S Ratio', 'Sig']
 	);
 	assert.equal(card._elements.tbody.parentNode.parentNode.className, 'card-body');
 	const latestRow = card._elements.tbody.children[0];
@@ -120,18 +120,16 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 	assert.equal(latestRow.classList.contains('sell'), true);
 	assert.equal(latestRow.children[1].textContent, 'SELL');
 	assert.equal(latestRow.children[1].classList.contains('side'), true);
-	assert.equal(latestRow.children[4].textContent, '303');
-	assert.equal(latestRow.children[5].textContent, '404');
-	assert.deepEqual(latestRow.children[6].children.map(signal => signal.textContent), ['💧']);
-	assert.equal(latestRow.children[6].children[0].getAttribute('title'), 'Low volume');
+	assert.match(latestRow.children[4].innerHTML, /width="42\.857142857142854"/);
+	assert.match(latestRow.children[4].innerHTML, /width="57\.142857142857146"/);
+	assert.deepEqual(latestRow.children[5].children.map(signal => signal.textContent), ['💧']);
+	assert.equal(latestRow.children[5].children[0].getAttribute('title'), 'Low volume');
 	assert.equal(latestRow.children[2].classList.contains('align-right'), true);
 	assert.equal(latestRow.children[3].classList.contains('align-right'), true);
-	assert.equal(latestRow.children[4].classList.contains('align-right'), true);
-	assert.equal(latestRow.children[5].classList.contains('align-right'), true);
-	assert.equal(latestRow.children[6].classList.contains('align-center'), true);
+	assert.equal(latestRow.children[5].classList.contains('align-center'), true);
 	assert.equal(card._elements.tbody.children[1].classList.contains('buy'), true);
 	assert.equal(card._elements.tbody.children[1].children[1].textContent, 'BUY');
-	assert.deepEqual(card._elements.tbody.children[1].children[6].children
+	assert.deepEqual(card._elements.tbody.children[1].children[5].children
 		.map(signal => signal.textContent), ['🔥']);
 
 	card.addTrade({
@@ -149,7 +147,7 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		totalCount: 1244,
 		sig: ['🔥', '🐋']
 	});
-	const compositeSignals = card._elements.tbody.children[0].children[6].children;
+	const compositeSignals = card._elements.tbody.children[0].children[5].children;
 	assert.deepEqual(compositeSignals.map(signal => signal.textContent), ['🔥', '🐋']);
 	assert.deepEqual(compositeSignals.map(signal => signal.getAttribute('title')),
 		['High volume', 'Whale trade']);
@@ -176,12 +174,31 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 	assert.equal(card._elements.totalCount.textContent, '1,295');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
 	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
-	assert.equal(card._elements.tbody.children[0].children[6].children[0].getAttribute('title'),
+	assert.equal(card._elements.tbody.children[0].children[5].children[0].getAttribute('title'),
 		'Normal volume');
 
 	card.clear();
 	assert.equal(card._elements.tbody.children.length, 0);
 	assert.equal(card._elements.totalCount.textContent, '0');
-	assert.equal(card._elements.buyCount.textContent, '0');
-	assert.equal(card._elements.sellCount.textContent, '0');
+	assert.match(card._elements.titleRatio.innerHTML, /Buy 0, sell 0/);
+});
+
+test('RatioBar renders proportional segments and omits labels that cannot fit', () => {
+	const markup = RatioBar({
+		leftValue: 75,
+		rightValue: 25,
+		leftColor: '#00aa00',
+		rightColor: '#cc0000'
+	});
+
+	assert.match(markup, /<rect class="ratio-bar-left" x="0" y="0" width="75"/);
+	assert.match(markup, /<rect class="ratio-bar-right" x="75" y="0" width="25"/);
+	assert.match(markup, /fill="#00aa00"/);
+	assert.match(markup, /fill="#cc0000"/);
+	assert.match(markup, /<text x="37\.5" y="11">75<\/text>/);
+	assert.match(markup, /<text x="87\.5" y="11">25<\/text>/);
+
+	const narrowMarkup = RatioBar({ leftValue: 99, rightValue: 1 });
+	assert.match(narrowMarkup, /<text x="49\.5" y="11">99<\/text>/);
+	assert.doesNotMatch(narrowMarkup, />1<\/text>/);
 });
