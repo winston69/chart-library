@@ -127,7 +127,8 @@ let lastPrice = null;
 // Bounded by `maxData` in time and MAX_TRADES in count.
 const tradeBuffer = [];
 const MAX_TRADES = 200000;
-const AVERAGE_TRADE_COUNT = 50;
+const SIGNAL_WINDOW_MS = 15 * 60 * 1000;
+const MIN_SIGNAL_SAMPLE_SIZE = 5;
 const buyWindow = [];
 const sellWindow = [];
 const pendingTrades = [];
@@ -158,26 +159,32 @@ function resetTradeAverages() {
 	sellWindow.length = 0;
 }
 
-function addTradeAverage(isBuyerMaker, quantity) {
-	if (isBuyerMaker === false) {
-		buyWindow.push(quantity);
-		if (buyWindow.length > AVERAGE_TRADE_COUNT) buyWindow.shift();
-	} else if (isBuyerMaker === true) {
-		sellWindow.push(quantity);
-		if (sellWindow.length > AVERAGE_TRADE_COUNT) sellWindow.shift();
+function pruneTradeWindow(window, cutoffTime) {
+	while (window.length > 0 && window[0].time < cutoffTime) {
+		window.shift();
 	}
 }
 
-function averageQuantity(quantities) {
-	if (quantities.length === 0) return 0;
-	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
+function addTradeAverage(isBuyerMaker, time, quantity, cutoffTime = Date.now() - SIGNAL_WINDOW_MS) {
+	if (isBuyerMaker === false) {
+		buyWindow.push({ time, qty: quantity });
+		pruneTradeWindow(buyWindow, cutoffTime);
+	} else if (isBuyerMaker === true) {
+		sellWindow.push({ time, qty: quantity });
+		pruneTradeWindow(sellWindow, cutoffTime);
+	}
+}
+
+function averageQuantity(window) {
+	if (window.length === 0) return 0;
+	return window.reduce((total, trade) => total + trade.qty, 0) / window.length;
 }
 
 function calculateStats(window) {
-	if (window.length === 0) return { mean: 0, stdDev: 0 };
+	if (window.length < MIN_SIGNAL_SAMPLE_SIZE) return { mean: 0, stdDev: 0 };
 	const mean = averageQuantity(window);
-	const variance = window.reduce((total, quantity) => (
-		total + (quantity - mean) ** 2
+	const variance = window.reduce((total, trade) => (
+		total + (trade.qty - mean) ** 2
 	), 0) / window.length;
 	return { mean, stdDev: Math.sqrt(variance) };
 }
@@ -204,12 +211,16 @@ function processLiveTrade(trade) {
 	)) return;
 
 	const sideWindow = trade.isBuyerMaker ? sellWindow : buyWindow;
+	const cutoffTime = Date.now() - SIGNAL_WINDOW_MS;
+	pruneTradeWindow(buyWindow, cutoffTime);
+	pruneTradeWindow(sellWindow, cutoffTime);
+	const hasEnoughSamples = sideWindow.length >= MIN_SIGNAL_SAMPLE_SIZE;
 	const { mean, stdDev } = calculateStats(sideWindow);
 	let signal = '➖';
-	if (sideWindow.length > 0 && stdDev === 0) {
+	if (hasEnoughSamples && stdDev === 0) {
 		if (trade.qty > mean) signal = '🐋';
 		else if (trade.qty < mean) signal = '💧';
-	} else if (stdDev > 0) {
+	} else if (hasEnoughSamples && stdDev > 0) {
 		const upperBand = mean + (2 * stdDev);
 		const whaleBand = mean + (4 * stdDev);
 		const lowerBand = mean - (2 * stdDev);
@@ -218,7 +229,7 @@ function processLiveTrade(trade) {
 		else if (trade.qty < lowerBand) signal = '💧';
 	}
 	processTrade(trade);
-	addTradeAverage(trade.isBuyerMaker, trade.qty);
+	addTradeAverage(trade.isBuyerMaker, trade.time, trade.qty, cutoffTime);
 	totalTradeCount++;
 	const aveBuyQty = averageQuantity(buyWindow);
 	const aveSellQty = averageQuantity(sellWindow);
@@ -769,7 +780,7 @@ async function fetchHistoricalSeed() {
 			if (idKey !== null) seedTradeIds.add(idKey);
 			const quantity = Number(trade.qty);
 			if (!Number.isFinite(quantity) || typeof trade.isBuyerMaker !== 'boolean') continue;
-			addTradeAverage(trade.isBuyerMaker, quantity);
+			addTradeAverage(trade.isBuyerMaker, trade.time, quantity);
 		}
 
 		// 2. Feed all trades synchronously to the processor

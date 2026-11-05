@@ -14,11 +14,14 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	const tradesRequestStarted = new Promise(resolve => {
 		resolveTradesRequest = resolve;
 	});
+	const seedTime = Date.now();
 	const restTrades = Array.from({ length: 1000 }, (_, index) => ({
 		id: index,
 		price: String(100 + index / 100),
 		qty: '10',
-		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000,
+		time: index < 950
+			? seedTime - 24 * 60 * 60 * 1000 + index * 45000
+			: seedTime - 10 * 60 * 1000 + (index - 950) * 1000,
 		isBuyerMaker: false
 	}));
 	const lastRestTradeTime = restTrades.at(-1).time;
@@ -175,8 +178,8 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			liveMessages[1].data.sig,
 			liveMessages[0].data.sig
 		],
-		[1000, 1001, 10, 8, 1001, 13.8, ['🐋'], ['➖']],
-		'the replay should retain seed averages and include whale trades in the BUY window'
+		[1000, 1001, 10, 8, 1001, 700 / 51, ['🐋'], ['➖']],
+		'the replay should retain seed averages and include whale trades in the time window'
 	);
 
 	for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
@@ -188,15 +191,16 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		[
 			allLiveMessages.length,
 			allLiveMessages[0].data.totalCount,
-			allLiveMessages[2].data.aveBuy,
-			allLiveMessages[61].data.aveBuy,
+			allLiveMessages[2].data.aveBuy.toFixed(2),
+			allLiveMessages[61].data.aveBuy.toFixed(2),
 			allLiveMessages[62].data.aveSell,
-			allLiveMessages.at(-1).data.aveBuy,
+			allLiveMessages.at(-1).data.aveBuy.toFixed(2),
 			allLiveMessages.at(-1).data.aveSell,
 			allLiveMessages.at(-1).data.totalCount
 		],
-		[65, 1001, 13.62, 35.5, 8, 35.2, 8, 1065],
-		'60 BUYs should retain only quantities 11 through 60, and SELL averages should remain isolated'
+		[65, 1001, (701 / 52).toFixed(2), (2530 / 111).toFixed(2), 8,
+			(2538 / 113).toFixed(2), 8, 1065],
+		'the time window should retain all recent trades, and BUY/SELL averages should remain isolated'
 	);
 });
 
@@ -295,4 +299,93 @@ test('uses Z-scores for volume signals and handles zero-variance windows', async
 		.filter(message => message.type === 'trade')
 		.map(message => message.data.sig);
 	assert.deepEqual(signals, [['➖'], ['➖'], ['➖'], ['🐋']]);
+});
+
+test('excludes trades older than 15 minutes from rolling statistics', async t => {
+	const globals = ['self', 'WebSocket', 'fetch'];
+	const descriptors = new Map(globals.map(name => [
+		name,
+		Object.getOwnPropertyDescriptor(globalThis, name)
+	]));
+	let socket;
+	const messages = [];
+	const startTime = Date.now() - 24 * 60 * 1000;
+	const restTrades = Array.from({ length: 20 }, (_, index) => ({
+		id: index,
+		price: '100',
+		qty: String(index + 1),
+		time: startTime + index * 60 * 1000,
+		isBuyerMaker: false
+	}));
+	globalThis.self = {
+		location: { origin: 'http://localhost:8787' },
+		onmessage: null,
+		postMessage: message => messages.push(message)
+	};
+	globalThis.WebSocket = class {
+		static OPEN = 1;
+		readyState = 1;
+		constructor() { socket = this; }
+		send() {}
+		close() {}
+	};
+	globalThis.fetch = async url => {
+		if (String(url).includes('/api/symbol-info')) {
+			return Response.json({
+				symbols: [{
+					symbol: 'BTCPHP',
+					status: 'trading',
+					filters: [
+						{ filterType: 'PRICE_FILTER', tickSize: '0.01' },
+						{ filterType: 'LOT_SIZE', stepSize: '0.001' }
+					]
+				}]
+			});
+		}
+		return Response.json(restTrades);
+	};
+
+	t.after(() => {
+		for (const [name, descriptor] of descriptors) {
+			if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+			else delete globalThis[name];
+		}
+	});
+
+	await import(`../chart-demo-live.js?time-window-test=${Date.now()}`);
+	self.onmessage({ data: {
+		type: 'config',
+		apiBase: 'http://localhost:8787',
+		bucketMs: 60000,
+		windowMs: 24 * 60 * 60 * 1000,
+		maxData: 7 * 24 * 60 * 60 * 1000,
+		eventTimeField: 'eventTime',
+		indicators: ['macd']
+	} });
+	self.onmessage({ data: { type: 'start' } });
+
+	await new Promise((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error('Timed out waiting for trade seed')), 5000);
+		self.postMessage = message => {
+			messages.push(message);
+			if (message.type === 'seed') {
+				clearTimeout(timer);
+				resolve();
+			}
+		};
+	});
+
+	socket.onmessage({
+		data: JSON.stringify({
+			e: 'trade',
+			t: 20,
+			p: '100',
+			q: '21',
+			T: Date.now(),
+			m: false
+		})
+	});
+	const tradeMessage = messages.find(message => message.type === 'trade');
+	assert.equal(tradeMessage.data.aveBuy, 16,
+		'only the 10 trades from the last 15 minutes plus the new trade should be averaged');
 });
