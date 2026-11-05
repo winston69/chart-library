@@ -173,12 +173,16 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			liveMessages[0].data.totalCount,
 			liveMessages[0].data.aveBuy,
 			liveMessages[0].data.aveSell,
+			liveMessages[0].data.buyCount,
+			liveMessages[0].data.sellCount,
 			liveMessages[1].data.id,
 			liveMessages[1].data.aveBuy,
+			liveMessages[1].data.buyCount,
+			liveMessages[1].data.sellCount,
 			liveMessages[1].data.sig,
 			liveMessages[0].data.sig
 		],
-		[1000, 1001, 10, 8, 1001, 700 / 51, ['🐋'], ['➖']],
+		[1000, 1001, 10, 8, 50, 1, 1001, 700 / 51, 51, 1, ['🐋'], ['➖']],
 		'the replay should retain seed averages and include whale trades in the time window'
 	);
 
@@ -388,4 +392,94 @@ test('excludes trades older than 15 minutes from rolling statistics', async t =>
 	const tradeMessage = messages.find(message => message.type === 'trade');
 	assert.equal(tradeMessage.data.aveBuy, 16,
 		'only the 10 trades from the last 15 minutes plus the new trade should be averaged');
+});
+
+test('raises the Z-score threshold for windows with fewer than 20 samples', async t => {
+	const globals = ['self', 'WebSocket', 'fetch'];
+	const descriptors = new Map(globals.map(name => [
+		name,
+		Object.getOwnPropertyDescriptor(globalThis, name)
+	]));
+	let socket;
+	const messages = [];
+	const startTime = Date.now() - 10000;
+	const restTrades = Array.from({ length: 5 }, (_, index) => ({
+		id: index,
+		price: '100',
+		qty: String(index + 1),
+		time: startTime + index * 100,
+		isBuyerMaker: false
+	}));
+	globalThis.self = {
+		location: { origin: 'http://localhost:8787' },
+		onmessage: null,
+		postMessage: message => messages.push(message)
+	};
+	globalThis.WebSocket = class {
+		static OPEN = 1;
+		readyState = 1;
+		constructor() { socket = this; }
+		send() {}
+		close() {}
+	};
+	globalThis.fetch = async url => {
+		if (String(url).includes('/api/symbol-info')) {
+			return Response.json({
+				symbols: [{
+					symbol: 'BTCPHP',
+					status: 'trading',
+					filters: [
+						{ filterType: 'PRICE_FILTER', tickSize: '0.01' },
+						{ filterType: 'LOT_SIZE', stepSize: '0.001' }
+					]
+				}]
+			});
+		}
+		return Response.json(restTrades);
+	};
+
+	t.after(() => {
+		for (const [name, descriptor] of descriptors) {
+			if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+			else delete globalThis[name];
+		}
+	});
+
+	await import(`../chart-demo-live.js?adaptive-zscore-test=${Date.now()}`);
+	self.onmessage({ data: {
+		type: 'config',
+		apiBase: 'http://localhost:8787',
+		bucketMs: 60000,
+		windowMs: 24 * 60 * 60 * 1000,
+		maxData: 7 * 24 * 60 * 60 * 1000,
+		eventTimeField: 'eventTime',
+		indicators: ['macd']
+	} });
+	self.onmessage({ data: { type: 'start' } });
+
+	await new Promise((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error('Timed out waiting for trade seed')), 5000);
+		self.postMessage = message => {
+			messages.push(message);
+			if (message.type === 'seed') {
+				clearTimeout(timer);
+				resolve();
+			}
+		};
+	});
+
+	socket.onmessage({
+		data: JSON.stringify({
+			e: 'trade',
+			t: 5,
+			p: '100',
+			q: '10',
+			T: Date.now(),
+			m: false
+		})
+	});
+	const tradeMessage = messages.find(message => message.type === 'trade');
+	assert.deepEqual(tradeMessage.data.sig, ['➖'],
+		'a 10-unit trade is below the adaptive upper band for five varied samples');
+	assert.equal(tradeMessage.data.buyCount, 6);
 });

@@ -8,6 +8,55 @@
 	display: none;
 }
 
+.trades-card .trades-title {
+	display: flex;
+	align-items: center;
+	gap: 0.35em;
+}
+
+.trades-card .window-stats {
+	display: inline-flex;
+	align-items: stretch;
+	height: 1em;
+	width: 9em;
+	margin-left: auto;
+	overflow: hidden;
+	border-radius: 0.25em;
+	background: rgba(128, 128, 128, 0.2);
+	font-size: 0.8em;
+	line-height: 1;
+}
+
+.trades-card .window-label,
+.trades-card .window-separator {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	padding: 0 0.2em;
+}
+
+.trades-card .buy-bar,
+.trades-card .sell-bar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 1 0;
+	min-width: 1.5em;
+	padding: 0 0.2em;
+	overflow: hidden;
+	font-variant-numeric: tabular-nums;
+}
+
+.trades-card .buy-bar {
+	background: #15803d;
+	color: #fff;
+}
+
+.trades-card .sell-bar {
+	background: #b91c1c;
+	color: #fff;
+}
+
 .trades-card table {
 	line-height: 1.4;
 	width: max-content;

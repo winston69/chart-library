@@ -10,6 +10,7 @@ class Element {
 		this.className = '';
 		this.attributes = new Map();
 		this.classNames = new Set();
+		this.style = {};
 		this.classList = {
 			add: name => this.classNames.add(name),
 			contains: name => this.classNames.has(name)
@@ -80,6 +81,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 0,
 		aveBuyValue: '300',
 		aveSellValue: '0',
+		buyCount: 1,
+		sellCount: 0,
 		totalCount: 1242,
 		sig: ['🔥']
 	});
@@ -93,12 +96,19 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 4,
 		aveBuyValue: '303',
 		aveSellValue: '404',
+		buyCount: 1,
+		sellCount: 1,
 		totalCount: 1243,
 		sig: ['💧']
 	});
 
-	assert.equal(card._elements.root.children[0].className, 'card-title');
-	assert.equal(card._elements.root.children[0].textContent, 'Trades (1,243)');
+	assert.equal(card._elements.root.children[0].className, 'card-title trades-title');
+	assert.equal(card._elements.totalCount.textContent, '1,243');
+	assert.equal(card._elements.root.children[0].children[2].children[0].textContent, '15m:');
+	assert.equal(card._elements.buyCount.textContent, '1');
+	assert.equal(card._elements.sellCount.textContent, '1');
+	assert.equal(card._elements.buyCount.style.flexGrow, '1');
+	assert.equal(card._elements.sellCount.style.flexGrow, '1');
 	assert.deepEqual(
 		card._elements.root.children[1].children[0].children[0].children[0].children
 			.map(header => header.textContent),
@@ -134,6 +144,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveSell: 4,
 		aveBuyValue: '306',
 		aveSellValue: '408',
+		buyCount: 2,
+		sellCount: 1,
 		totalCount: 1244,
 		sig: ['🔥', '🐋']
 	});
@@ -153,13 +165,15 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 			aveSell: 1,
 			aveBuyValue: '1',
 			aveSellValue: '1',
+			buyCount: 3,
+			sellCount: 2,
 			totalCount: 1245 + index,
 			sig: ['➖']
 		});
 	}
 
 	assert.equal(card._elements.tbody.children.length, 50);
-	assert.equal(card._elements.root.children[0].textContent, 'Trades (1,295)');
+	assert.equal(card._elements.totalCount.textContent, '1,295');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
 	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
 	assert.equal(card._elements.tbody.children[0].children[6].children[0].getAttribute('title'),
@@ -167,5 +181,7 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 
 	card.clear();
 	assert.equal(card._elements.tbody.children.length, 0);
-	assert.equal(card._elements.root.children[0].textContent, 'Trades (0)');
+	assert.equal(card._elements.totalCount.textContent, '0');
+	assert.equal(card._elements.buyCount.textContent, '0');
+	assert.equal(card._elements.sellCount.textContent, '0');
 });

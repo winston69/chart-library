@@ -2,6 +2,7 @@ import { CSS } from '../core/CSS.js';
 import { formatNumber } from '../utils/Format.js';
 
 const MAX_TRADES = 50;
+const SIGNAL_WINDOW_MINS = 15;
 const SIGNAL_DESCRIPTIONS = Object.freeze({
 	'🔥': 'High volume',
 	'💧': 'Low volume',
@@ -19,10 +20,15 @@ export class TradesCard {
 		this._elements = {
 			root: null,
 			tbody: null,
-			title: null
+			title: null,
+			totalCount: null,
+			buyCount: null,
+			sellCount: null
 		};
 		this._trades = [];
 		this._totalCount = 0;
+		this._buyCount = 0;
+		this._sellCount = 0;
 	}
 
 	render(container) {
@@ -36,6 +42,8 @@ export class TradesCard {
 		this._trades.unshift(trade);
 		if (this._trades.length > MAX_TRADES) this._trades.length = MAX_TRADES;
 		this._totalCount = trade.totalCount;
+		this._buyCount = trade.buyCount;
+		this._sellCount = trade.sellCount;
 		const tbody = this._elements.tbody;
 		if (!tbody) return;
 
@@ -49,6 +57,8 @@ export class TradesCard {
 	clear() {
 		this._trades = [];
 		this._totalCount = 0;
+		this._buyCount = 0;
+		this._sellCount = 0;
 		if (this._elements.tbody) this._elements.tbody.replaceChildren();
 		this._updateTitle();
 	}
@@ -61,7 +71,14 @@ export class TradesCard {
 	destroy() {
 		const root = this._elements.root;
 		if (root && root.parentNode) root.parentNode.removeChild(root);
-		this._elements = { root: null, tbody: null, title: null };
+		this._elements = {
+			root: null,
+			tbody: null,
+			title: null,
+			totalCount: null,
+			buyCount: null,
+			sellCount: null
+		};
 	}
 
 	_createContent() {
@@ -69,8 +86,29 @@ export class TradesCard {
 		root.className = 'trades-card';
 
 		const title = document.createElement('div');
-		title.className = CSS.cardTitle;
-		title.textContent = 'Trades (0)';
+		title.className = `${CSS.cardTitle} trades-title`;
+		const titleLabel = document.createElement('span');
+		titleLabel.textContent = 'Trades: ';
+		const totalCount = document.createElement('span');
+		title.appendChild(titleLabel);
+		title.appendChild(totalCount);
+		const windowStats = document.createElement('span');
+		windowStats.className = 'window-stats';
+		const windowLabel = document.createElement('span');
+		windowLabel.className = 'window-label';
+		windowLabel.textContent = `${SIGNAL_WINDOW_MINS}m:`;
+		const buyCount = document.createElement('span');
+		buyCount.className = 'buy-bar';
+		const separator = document.createElement('span');
+		separator.className = 'window-separator';
+		separator.textContent = '|';
+		const sellCount = document.createElement('span');
+		sellCount.className = 'sell-bar';
+		windowStats.appendChild(windowLabel);
+		windowStats.appendChild(buyCount);
+		windowStats.appendChild(separator);
+		windowStats.appendChild(sellCount);
+		title.appendChild(windowStats);
 		root.appendChild(title);
 
 		const body = document.createElement('div');
@@ -92,7 +130,7 @@ export class TradesCard {
 		body.appendChild(table);
 		root.appendChild(body);
 
-		this._elements = { root, tbody, title };
+		this._elements = { root, tbody, title, totalCount, buyCount, sellCount };
 		this._updateTitle();
 		for (let i = this._trades.length - 1; i >= 0; i--) {
 			tbody.insertBefore(this._createRow(this._trades[i]), tbody.firstChild);
@@ -101,7 +139,11 @@ export class TradesCard {
 
 	_updateTitle() {
 		if (this._elements.title) {
-			this._elements.title.textContent = `Trades (${formatNumber(this._totalCount, 0)})`;
+			this._elements.totalCount.textContent = formatNumber(this._totalCount, 0);
+			this._elements.buyCount.textContent = String(this._buyCount);
+			this._elements.sellCount.textContent = String(this._sellCount);
+			this._elements.buyCount.style.flexGrow = String(this._buyCount);
+			this._elements.sellCount.style.flexGrow = String(this._sellCount);
 		}
 	}
 

@@ -221,9 +221,13 @@ function processLiveTrade(trade) {
 		if (trade.qty > mean) signal = '🐋';
 		else if (trade.qty < mean) signal = '💧';
 	} else if (hasEnoughSamples && stdDev > 0) {
-		const upperBand = mean + (2 * stdDev);
-		const whaleBand = mean + (4 * stdDev);
-		const lowerBand = mean - (2 * stdDev);
+		const baseZ = 2;
+		const adjustedZ = sideWindow.length < 20
+			? baseZ * (20 / sideWindow.length)
+			: sideWindow.length > 50 ? baseZ * 0.9 : baseZ;
+		const upperBand = mean + (adjustedZ * stdDev);
+		const whaleBand = mean + (adjustedZ * 2 * stdDev);
+		const lowerBand = mean - (adjustedZ * stdDev);
 		if (trade.qty > whaleBand) signal = '🐋';
 		else if (trade.qty > upperBand) signal = '🔥';
 		else if (trade.qty < lowerBand) signal = '💧';
@@ -241,6 +245,8 @@ function processLiveTrade(trade) {
 			aveSell: aveSellQty,
 			aveBuyValue: aveBuyQty * trade.price,
 			aveSellValue: aveSellQty * trade.price,
+			buyCount: buyWindow.length,
+			sellCount: sellWindow.length,
 			sig: [signal],
 			totalCount: totalTradeCount
 		}
