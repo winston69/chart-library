@@ -130,6 +130,10 @@ const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
 const buyWindow = [];
 const sellWindow = [];
+let buyCount = 0;
+let sumBuyQty = 0;
+let sellCount = 0;
+let sumSellQty = 0;
 let totalTradeCount = 0;
 
 // ─── Outbound tick throttle ───
@@ -153,24 +157,30 @@ function postError(message) {
 function resetTradeAverages() {
 	buyWindow.length = 0;
 	sellWindow.length = 0;
-}
-
-function addTradeQuantity(quantities, quantity) {
-	quantities.push(quantity);
-	if (quantities.length > AVERAGE_TRADE_COUNT) quantities.shift();
+	buyCount = 0;
+	sumBuyQty = 0;
+	sellCount = 0;
+	sumSellQty = 0;
 }
 
 function addTradeAverage(isBuyerMaker, quantity) {
 	if (isBuyerMaker === false) {
-		addTradeQuantity(buyWindow, quantity);
+		if (buyCount === AVERAGE_TRADE_COUNT) {
+			sumBuyQty -= buyWindow.shift();
+			buyCount--;
+		}
+		buyWindow.push(quantity);
+		sumBuyQty += quantity;
+		buyCount++;
 	} else if (isBuyerMaker === true) {
-		addTradeQuantity(sellWindow, quantity);
+		if (sellCount === AVERAGE_TRADE_COUNT) {
+			sumSellQty -= sellWindow.shift();
+			sellCount--;
+		}
+		sellWindow.push(quantity);
+		sumSellQty += quantity;
+		sellCount++;
 	}
-}
-
-function averageQuantity(quantities) {
-	if (quantities.length === 0) return 0;
-	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
 }
 
 function countDecimals(stepSize) {
@@ -378,16 +388,16 @@ function connect() {
 		processTrade(trade);
 		addTradeAverage(trade.isBuyerMaker, trade.qty);
 		totalTradeCount++;
-		const aveBuy = averageQuantity(buyWindow);
-		const aveSell = averageQuantity(sellWindow);
+		const aveBuyQty = buyCount > 0 ? sumBuyQty / buyCount : 0;
+		const aveSellQty = sellCount > 0 ? sumSellQty / sellCount : 0;
 		self.postMessage({
 			type: 'trade',
 			data: {
 				...trade,
-				aveBuy,
-				aveSell,
-				aveBuyValue: aveBuy * trade.price,
-				aveSellValue: aveSell * trade.price,
+				aveBuy: aveBuyQty,
+				aveSell: aveSellQty,
+				aveBuyValue: aveBuyQty * trade.price,
+				aveSellValue: aveSellQty * trade.price,
 				totalCount: totalTradeCount
 			}
 		});
@@ -696,6 +706,7 @@ async function fetchHistoricalSeed() {
 		isSeeding = true;
 
 		const sortedTrades = tradesArray.sort((a, b) => a.time - b.time);
+		resetTradeAverages();
 		for (const trade of sortedTrades) {
 			const quantity = Number(trade.qty);
 			if (!Number.isFinite(quantity) || typeof trade.isBuyerMaker !== 'boolean') continue;
