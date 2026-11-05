@@ -1,4 +1,5 @@
 import { CSS } from '../core/CSS.js';
+import { formatNumber } from '../utils/Format.js';
 
 const MAX_TRADES = 50;
 
@@ -12,6 +13,7 @@ export class TradesCard {
 			title: null
 		};
 		this._trades = [];
+		this._totalCount = 0;
 	}
 
 	render(container) {
@@ -24,6 +26,7 @@ export class TradesCard {
 	addTrade(trade) {
 		this._trades.unshift(trade);
 		if (this._trades.length > MAX_TRADES) this._trades.length = MAX_TRADES;
+		this._totalCount = trade.totalCount;
 		const tbody = this._elements.tbody;
 		if (!tbody) return;
 
@@ -36,6 +39,7 @@ export class TradesCard {
 
 	clear() {
 		this._trades = [];
+		this._totalCount = 0;
 		if (this._elements.tbody) this._elements.tbody.replaceChildren();
 		this._updateTitle();
 	}
@@ -88,7 +92,7 @@ export class TradesCard {
 
 	_updateTitle() {
 		if (this._elements.title) {
-			this._elements.title.textContent = `Trades (${this._trades.length})`;
+			this._elements.title.textContent = `Trades (${formatNumber(this._totalCount, 0)})`;
 		}
 	}
 

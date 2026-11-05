@@ -70,7 +70,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveBuy: 3,
 		aveSell: 0,
 		aveBuyValue: '300',
-		aveSellValue: '0'
+		aveSellValue: '0',
+		totalCount: 1242
 	});
 	card.addTrade({
 		time: '12:00:01',
@@ -81,11 +82,12 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveBuy: 3,
 		aveSell: 4,
 		aveBuyValue: '303',
-		aveSellValue: '404'
+		aveSellValue: '404',
+		totalCount: 1243
 	});
 
 	assert.equal(card._elements.root.children[0].className, 'card-title');
-	assert.equal(card._elements.root.children[0].textContent, 'Trades (2)');
+	assert.equal(card._elements.root.children[0].textContent, 'Trades (1,243)');
 	assert.deepEqual(
 		card._elements.root.children[1].children[0].children[0].children[0].children
 			.map(header => header.textContent),
@@ -114,7 +116,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		aveBuy: 3,
 		aveSell: 4,
 		aveBuyValue: '306',
-		aveSellValue: '408'
+		aveSellValue: '408',
+		totalCount: 1244
 	});
 	assert.equal(card._elements.tbody.children[0].children[5].textContent, '➖');
 
@@ -128,12 +131,13 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 			aveBuy: 1,
 			aveSell: 1,
 			aveBuyValue: '1',
-			aveSellValue: '1'
+			aveSellValue: '1',
+			totalCount: 1245 + index
 		});
 	}
 
 	assert.equal(card._elements.tbody.children.length, 50);
-	assert.equal(card._elements.root.children[0].textContent, 'Trades (50)');
+	assert.equal(card._elements.root.children[0].textContent, 'Trades (1,295)');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
 	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
 

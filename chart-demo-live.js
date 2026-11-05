@@ -130,6 +130,7 @@ const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
 const buyQuantities = [];
 const sellQuantities = [];
+let totalTradeCount = 0;
 
 // ─── Outbound tick throttle ───
 let lastTickAt = 0;
@@ -371,6 +372,7 @@ function connect() {
 			trade.isBuyerMaker ? sellQuantities : buyQuantities,
 			trade.qty
 		);
+		totalTradeCount++;
 		const aveBuy = averageQuantity(buyQuantities);
 		const aveSell = averageQuantity(sellQuantities);
 		self.postMessage({
@@ -380,7 +382,8 @@ function connect() {
 				aveBuy,
 				aveSell,
 				aveBuyValue: aveBuy * trade.price,
-				aveSellValue: aveSell * trade.price
+				aveSellValue: aveSell * trade.price,
+				totalCount: totalTradeCount
 			}
 		});
 	};
@@ -474,6 +477,7 @@ function handleConfig(msg) {
 		disconnectSocket();
 		tradeBuffer.length = 0;
 		resetTradeAverages();
+		totalTradeCount = 0;
 		currentBucket = null;
 		bucketStartSnap = null;
 		lastPrice = null;
@@ -542,6 +546,7 @@ function disconnect() {
 	disconnectSocket();
 	tradeBuffer.length = 0;
 	resetTradeAverages();
+	totalTradeCount = 0;
 	currentBucket = null;
 	bucketStartSnap = null;
 	lastPrice = null;
@@ -706,6 +711,7 @@ async function fetchHistoricalSeed() {
 				console.log(`Trade ${index + 1}: tradeBuffer.length = ${tradeBuffer.length}`);
 			}
 		});
+		totalTradeCount = tradesArray.length;
 
 		console.log(`Seeded ${tradesArray.length} historical trades into queue.`);
 
