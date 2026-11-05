@@ -8,6 +8,7 @@ class Element {
 		this.children = [];
 		this.textContent = '';
 		this.className = '';
+		this.attributes = new Map();
 		this.classNames = new Set();
 		this.classList = {
 			add: name => this.classNames.add(name),
@@ -39,6 +40,14 @@ class Element {
 	replaceChildren(...children) {
 		this.children = [];
 		for (const child of children) this.appendChild(child);
+	}
+
+	setAttribute(name, value) {
+		this.attributes.set(name, String(value));
+	}
+
+	getAttribute(name) {
+		return this.attributes.get(name) || null;
 	}
 
 	get firstChild() {
@@ -96,21 +105,24 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		['Time', 'Side', 'Price', 'Value', 'AveBuy', 'AveSell', 'Sig']
 	);
 	assert.equal(card._elements.tbody.parentNode.parentNode.className, 'card-body');
-	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:00:01');
-	assert.equal(card._elements.tbody.children[0].classList.contains('sell'), true);
-	assert.equal(card._elements.tbody.children[0].children[1].textContent, 'SELL');
-	assert.equal(card._elements.tbody.children[0].children[1].classList.contains('side'), true);
-	assert.equal(card._elements.tbody.children[0].children[4].textContent, '303');
-	assert.equal(card._elements.tbody.children[0].children[5].textContent, '404');
-	assert.equal(card._elements.tbody.children[0].children[6].textContent, '💧');
-	assert.equal(card._elements.tbody.children[0].children[2].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[3].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[4].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[5].classList.contains('align-right'), true);
-	assert.equal(card._elements.tbody.children[0].children[6].classList.contains('align-center'), true);
+	const latestRow = card._elements.tbody.children[0];
+	assert.equal(latestRow.children[0].textContent, '12:00:01');
+	assert.equal(latestRow.classList.contains('sell'), true);
+	assert.equal(latestRow.children[1].textContent, 'SELL');
+	assert.equal(latestRow.children[1].classList.contains('side'), true);
+	assert.equal(latestRow.children[4].textContent, '303');
+	assert.equal(latestRow.children[5].textContent, '404');
+	assert.deepEqual(latestRow.children[6].children.map(signal => signal.textContent), ['💧']);
+	assert.equal(latestRow.children[6].children[0].getAttribute('title'), 'Low volume');
+	assert.equal(latestRow.children[2].classList.contains('align-right'), true);
+	assert.equal(latestRow.children[3].classList.contains('align-right'), true);
+	assert.equal(latestRow.children[4].classList.contains('align-right'), true);
+	assert.equal(latestRow.children[5].classList.contains('align-right'), true);
+	assert.equal(latestRow.children[6].classList.contains('align-center'), true);
 	assert.equal(card._elements.tbody.children[1].classList.contains('buy'), true);
 	assert.equal(card._elements.tbody.children[1].children[1].textContent, 'BUY');
-	assert.equal(card._elements.tbody.children[1].children[6].textContent, '🔥');
+	assert.deepEqual(card._elements.tbody.children[1].children[6].children
+		.map(signal => signal.textContent), ['🔥']);
 
 	card.addTrade({
 		time: '12:00:02',
@@ -125,7 +137,10 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 		totalCount: 1244,
 		sig: ['🔥', '🐋']
 	});
-	assert.equal(card._elements.tbody.children[0].children[6].textContent, '🔥🐋');
+	const compositeSignals = card._elements.tbody.children[0].children[6].children;
+	assert.deepEqual(compositeSignals.map(signal => signal.textContent), ['🔥', '🐋']);
+	assert.deepEqual(compositeSignals.map(signal => signal.getAttribute('title')),
+		['High volume', 'Whale trade']);
 
 	for (let index = 0; index < 51; index++) {
 		card.addTrade({
@@ -147,6 +162,8 @@ test('TradesCard prepends trades, colors rows, and caps the table at 50', t => {
 	assert.equal(card._elements.root.children[0].textContent, 'Trades (1,295)');
 	assert.equal(card._elements.tbody.children[0].children[0].textContent, '12:01:50');
 	assert.equal(card._elements.tbody.children.at(-1).children[0].textContent, '12:01:01');
+	assert.equal(card._elements.tbody.children[0].children[6].children[0].getAttribute('title'),
+		'Normal volume');
 
 	card.clear();
 	assert.equal(card._elements.tbody.children.length, 0);

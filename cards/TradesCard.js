@@ -2,6 +2,15 @@ import { CSS } from '../core/CSS.js';
 import { formatNumber } from '../utils/Format.js';
 
 const MAX_TRADES = 50;
+const SIGNAL_DESCRIPTIONS = Object.freeze({
+	'🔥': 'High volume',
+	'💧': 'Low volume',
+	'➖': 'Normal volume',
+	'🐋': 'Whale trade',
+	'📈': 'Bullish signal (MACD/breakout)',
+	'📉': 'Bearish signal (MACD/breakout)',
+	'⚠️': 'Warning (RSI overbought/oversold)'
+});
 
 export class TradesCard {
 	constructor(options = {}) {
@@ -99,7 +108,6 @@ export class TradesCard {
 	_createRow(trade) {
 		const row = document.createElement('tr');
 		row.classList.add(trade.isBuyerMaker === false ? 'buy' : 'sell');
-		const signal = Array.isArray(trade.sig) ? trade.sig.join('') : '';
 		const cells = [
 			{ value: trade.time },
 			{ value: trade.isBuyerMaker === false ? 'BUY' : 'SELL', className: 'side' },
@@ -107,11 +115,20 @@ export class TradesCard {
 			{ value: trade.value, alignment: 'align-right' },
 			{ value: trade.aveBuyValue, alignment: 'align-right' },
 			{ value: trade.aveSellValue, alignment: 'align-right' },
-			{ value: signal, alignment: 'align-center' }
+			{ signals: Array.isArray(trade.sig) ? trade.sig : [], alignment: 'align-center' }
 		];
-		for (const { value, alignment, className } of cells) {
+		for (const { value, signals, alignment, className } of cells) {
 			const cell = document.createElement('td');
-			cell.textContent = value;
+			if (signals) {
+				for (const emoji of signals) {
+					const signal = document.createElement('span');
+					signal.textContent = emoji;
+					signal.setAttribute('title', SIGNAL_DESCRIPTIONS[emoji] || '');
+					cell.appendChild(signal);
+				}
+			} else {
+				cell.textContent = value;
+			}
 			if (alignment) cell.classList.add(alignment);
 			if (className) cell.classList.add(className);
 			row.appendChild(cell);
