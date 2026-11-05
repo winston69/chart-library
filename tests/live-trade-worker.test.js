@@ -9,7 +9,13 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	]));
 	let socket;
 	const messages = [];
+	let resolveTradesRequest;
+	let releaseTrades;
+	const tradesRequestStarted = new Promise(resolve => {
+		resolveTradesRequest = resolve;
+	});
 	const restTrades = Array.from({ length: 1000 }, (_, index) => ({
+		id: index,
 		price: String(100 + index / 100),
 		qty: '10',
 		time: Date.now() - 24 * 60 * 60 * 1000 + index * 45000,
@@ -17,6 +23,7 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	}));
 	const lastRestTradeTime = restTrades.at(-1).time;
 	const websocketTrades = Array.from({ length: 60 }, (_, index) => ({
+		id: 2000 + index,
 		price: Number(restTrades.at(-1).price) + index + 1,
 		qty: index + 1,
 		time: lastRestTradeTime + index + 1,
@@ -24,18 +31,21 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	}));
 	websocketTrades.push(
 		{
+			id: 2060,
 			price: Number(restTrades.at(-1).price) + 61,
 			qty: 8,
 			time: lastRestTradeTime + 61,
 			isBuyerMaker: true
 		},
 		{
+			id: 2061,
 			price: Number(restTrades.at(-1).price) + 62,
 			qty: 3,
 			time: lastRestTradeTime + 62,
 			isBuyerMaker: false
 		},
 		{
+			id: 2062,
 			price: Number(restTrades.at(-1).price) + 63,
 			qty: 5,
 			time: lastRestTradeTime + 63,
@@ -69,7 +79,10 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			});
 		}
 
-		return Response.json(restTrades);
+		resolveTradesRequest();
+		return new Promise(resolve => {
+			releaseTrades = () => resolve(Response.json(restTrades));
+		});
 	};
 
 	t.after(() => {
@@ -102,52 +115,73 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 	} });
 	self.onmessage({ data: { type: 'start' } });
 
+	await tradesRequestStarted;
+	const sendTrade = trade => socket.onmessage({
+		data: JSON.stringify({
+			e: 'trade',
+			t: trade.id,
+			p: String(trade.price),
+			q: String(trade.qty),
+			T: trade.time,
+			m: trade.isBuyerMaker
+		})
+	});
+	const overlapTrade = {
+		id: restTrades.at(-1).id,
+		price: Number(restTrades.at(-1).price),
+		qty: 10,
+		time: lastRestTradeTime,
+		isBuyerMaker: false
+	};
+	sendTrade(overlapTrade);
+	sendTrade(overlapTrade);
+	const queuedTrade = {
+		id: 1000,
+		price: 111,
+		qty: 8,
+		time: lastRestTradeTime + 1,
+		isBuyerMaker: true
+	};
+	sendTrade(queuedTrade);
+	releaseTrades();
+
 	const rows = await seedPromise;
 	assert.ok(rows.length >= 700, `expected hundreds of minute candles, got ${rows.length}`);
 	assert.deepEqual(
 		rows.map(row => row.openTime),
 		rows.map(row => row.openTime).toSorted((a, b) => a - b)
 	);
-	assert.equal(
-		messages.filter(message => message.type === 'trade').length,
-		0,
-		'REST seed trades should not be sent to the table'
+	const liveMessages = messages.filter(message => message.type === 'trade');
+	assert.equal(liveMessages.length, 1, 'seed-overlap trades should be dropped and the new queued trade replayed');
+	assert.deepEqual(
+		[
+			liveMessages[0].data.id,
+			liveMessages[0].data.totalCount,
+			liveMessages[0].data.aveBuy,
+			liveMessages[0].data.aveSell
+		],
+		[1000, 1001, 10, 8],
+		'the first replayed SELL should retain the seeded BUY average'
 	);
 
 	for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
-		socket.onmessage({
-			data: JSON.stringify({
-				e: 'trade',
-				p: String(websocketTrade.price),
-				q: String(websocketTrade.qty),
-				T: websocketTrade.time,
-				m: websocketTrade.isBuyerMaker
-			})
-		});
+		sendTrade(websocketTrade);
 	}
 
+	const allLiveMessages = messages.filter(message => message.type === 'trade');
 	assert.deepEqual(
 		[
-			messages.filter(message => message.type === 'trade').length,
-			messages.find(message => message.type === 'trade').data.aveBuy,
-			messages.find(message => message.type === 'trade').data.aveSell,
-			messages.filter(message => message.type === 'trade')[49].data.aveBuy,
-			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
-			messages.filter(message => message.type === 'trade')[59].data.aveBuy,
-			messages.filter(message => message.type === 'trade')[60].data.aveSell,
-			messages.filter(message => message.type === 'trade')[61].data.aveSell,
-			messages.filter(message => message.type === 'trade').at(-1).data.aveBuy,
-			messages.filter(message => message.type === 'trade').at(-1).data.aveSell,
-			messages.find(message => message.type === 'trade').data.aveBuyValue,
-			messages.filter(message => message.type === 'trade')[60].data.aveSellValue,
-			messages.filter(message => message.type === 'trade').at(-1).data.aveSellValue,
-			messages.find(message => message.type === 'trade').data.totalCount,
-			messages.filter(message => message.type === 'trade').at(-1).data.totalCount
+			allLiveMessages.length,
+			allLiveMessages[0].data.totalCount,
+			allLiveMessages[1].data.aveBuy,
+			allLiveMessages[50].data.aveBuy,
+			allLiveMessages[60].data.aveBuy,
+			allLiveMessages[61].data.aveSell,
+			allLiveMessages.at(-1).data.aveBuy,
+			allLiveMessages.at(-1).data.aveSell,
+			allLiveMessages.at(-1).data.totalCount
 		],
-		[
-			63, 9.82, 0, 25.5, 26.5, 35.5, 8, 8, 35.2, 8,
-			9.82 * 110.99, 8 * 170.99, 8 * 172.99, 1001, 1063
-		],
+		[64, 1001, 9.82, 25.5, 35.5, 8, 35.2, 8, 1064],
 		'60 BUYs should retain only quantities 11 through 60, and SELL averages should remain isolated'
 	);
 });

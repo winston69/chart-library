@@ -130,6 +130,9 @@ const MAX_TRADES = 200000;
 const AVERAGE_TRADE_COUNT = 50;
 const buyWindow = [];
 const sellWindow = [];
+const pendingTrades = [];
+const pendingTradeIds = new Set();
+const seedTradeIds = new Set();
 let totalTradeCount = 0;
 
 // ─── Outbound tick throttle ───
@@ -168,6 +171,52 @@ function addTradeAverage(isBuyerMaker, quantity) {
 function averageQuantity(quantities) {
 	if (quantities.length === 0) return 0;
 	return quantities.reduce((total, quantity) => total + quantity, 0) / quantities.length;
+}
+
+function tradeIdKey(id) {
+	return id === undefined || id === null ? null : String(id);
+}
+
+function beginSeeding() {
+	isSeeding = true;
+	pendingTrades.length = 0;
+	pendingTradeIds.clear();
+	seedTradeIds.clear();
+}
+
+function processLiveTrade(trade) {
+	const idKey = tradeIdKey(trade.id);
+	if (idKey !== null && seedTradeIds.has(idKey)) return;
+
+	const lastTrade = tradeBuffer[tradeBuffer.length - 1];
+	if (lastTrade && (
+		(idKey !== null && idKey === tradeIdKey(lastTrade.id))
+		|| (lastTrade.time === trade.time && lastTrade.price === trade.price)
+	)) return;
+
+	processTrade(trade);
+	addTradeAverage(trade.isBuyerMaker, trade.qty);
+	totalTradeCount++;
+	const aveBuyQty = averageQuantity(buyWindow);
+	const aveSellQty = averageQuantity(sellWindow);
+	self.postMessage({
+		type: 'trade',
+		data: {
+			...trade,
+			aveBuy: aveBuyQty,
+			aveSell: aveSellQty,
+			aveBuyValue: aveBuyQty * trade.price,
+			aveSellValue: aveSellQty * trade.price,
+			totalCount: totalTradeCount
+		}
+	});
+}
+
+function replayPendingTrades() {
+	isSeeding = false;
+	const trades = pendingTrades.splice(0);
+	pendingTradeIds.clear();
+	for (const trade of trades) processLiveTrade(trade);
 }
 
 function countDecimals(stepSize) {
@@ -357,37 +406,25 @@ function connect() {
 		}
 		if (payload.e !== 'trade') return;
 
-		const price = Number(payload.p);
-		const quantity = Number(payload.q);
-		const tradeTime = Number(payload.T);
 		const trade = {
-			price,
-			qty: quantity,
-			time: tradeTime,
+			id: payload.t,
+			price: Number(payload.p),
+			qty: Number(payload.q),
+			time: Number(payload.T),
 			isBuyerMaker: payload.m
 		};
 
 		if (!isFinite(trade.price) || !isFinite(trade.qty) || !isFinite(trade.time)
 			|| typeof trade.isBuyerMaker !== 'boolean') return;
-		const lastTrade = tradeBuffer[tradeBuffer.length - 1];
-		if (lastTrade && lastTrade.time === trade.time && lastTrade.price === trade.price) return;
+		if (isSeeding) {
+			const idKey = tradeIdKey(trade.id);
+			if (idKey !== null && pendingTradeIds.has(idKey)) return;
+			if (idKey !== null) pendingTradeIds.add(idKey);
+			pendingTrades.push(trade);
+			return;
+		}
 
-		processTrade(trade);
-		addTradeAverage(trade.isBuyerMaker, trade.qty);
-		totalTradeCount++;
-		const aveBuyQty = averageQuantity(buyWindow);
-		const aveSellQty = averageQuantity(sellWindow);
-		self.postMessage({
-			type: 'trade',
-			data: {
-				...trade,
-				aveBuy: aveBuyQty,
-				aveSell: aveSellQty,
-				aveBuyValue: aveBuyQty * trade.price,
-				aveSellValue: aveSellQty * trade.price,
-				totalCount: totalTradeCount
-			}
-		});
+		processLiveTrade(trade);
 	};
 
 	ws.onerror = () => {
@@ -487,6 +524,7 @@ function handleConfig(msg) {
 
 		if (wasEmitting) {
 			emitting = true;
+			beginSeeding();
 			self.postMessage({ type: 'seed', data: [] });
 			connect();
 			fetchHistoricalSeed();
@@ -516,6 +554,7 @@ function start() {
 		indicators = createIndicatorSet(indicatorEntries, { bucketMs });
 
 		// 1. Connect WebSocket FIRST to start buffering live trades
+		beginSeeding();
 		connect();
 
 		// 2. Fetch historical data SECOND and push to queue
@@ -545,6 +584,10 @@ function stop() {
 function disconnect() {
 	seedGeneration++;
 	emitting = false;
+	isSeeding = false;
+	pendingTrades.length = 0;
+	pendingTradeIds.clear();
+	seedTradeIds.clear();
 	disconnectSocket();
 	tradeBuffer.length = 0;
 	resetTradeAverages();
@@ -690,11 +733,12 @@ async function fetchHistoricalSeed() {
 		console.log(`Fetched historical trades response length: ${tradesArray.length}`);
 
 		// 1. Lock ticking
-		isSeeding = true;
-
 		const sortedTrades = tradesArray.sort((a, b) => a.time - b.time);
 		resetTradeAverages();
+		seedTradeIds.clear();
 		for (const trade of sortedTrades) {
+			const idKey = tradeIdKey(trade.id);
+			if (idKey !== null) seedTradeIds.add(idKey);
 			const quantity = Number(trade.qty);
 			if (!Number.isFinite(quantity) || typeof trade.isBuyerMaker !== 'boolean') continue;
 			addTradeAverage(trade.isBuyerMaker, quantity);
@@ -703,6 +747,7 @@ async function fetchHistoricalSeed() {
 		// 2. Feed all trades synchronously to the processor
 		sortedTrades.forEach((t, index) => {
 			processTrade({
+				id: t.id,
 				price: parseFloat(t.price),
 				qty: parseFloat(t.qty),
 				time: t.time
@@ -715,9 +760,6 @@ async function fetchHistoricalSeed() {
 
 		console.log(`Seeded ${tradesArray.length} historical trades into queue.`);
 
-		// 3. Unlock ticking
-		isSeeding = false;
-
 		// 4. Emit the entire history as a single seed message
 		console.log('Rebucketing historical trades:', {
 			tradeBufferLength: tradeBuffer.length,
@@ -727,6 +769,7 @@ async function fetchHistoricalSeed() {
 		const rows = rebucketFromBuffer();
 		self.postMessage({ type: 'seed', data: rows });
 		console.log(`Emitted seed with ${rows.length} historical candles.`);
+		replayPendingTrades();
 
 		// 5. Immediately emit the current forming bucket
 		if (currentBucket) {
@@ -735,7 +778,7 @@ async function fetchHistoricalSeed() {
 
 	} catch (err) {
 		if (generation !== seedGeneration) return;
-		isSeeding = false; // Ensure we don't get stuck if fetch fails
+		replayPendingTrades();
 		postError(`Failed to fetch historical seed: ${err.message}`);
 	}
 }
