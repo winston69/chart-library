@@ -237,6 +237,19 @@ function processLiveTrade(trade) {
 	totalTradeCount++;
 	const aveBuyQty = averageQuantity(buyWindow);
 	const aveSellQty = averageQuantity(sellWindow);
+	if (signal === '🔥' || signal === '🐋') {
+		const side = trade.isBuyerMaker ? 'SELL' : 'BUY';
+		const kind = signal === '🐋' ? 'Whale' : 'High-volume';
+		self.postMessage({
+			type: 'log',
+			data: {
+				source: 'trades',
+				time: Date.now(),
+				message: `${kind} ${side} detected: ${trade.qty.toLocaleString('en-US')}`,
+				direction: trade.isBuyerMaker ? 'bearish' : 'bullish'
+			}
+		});
+	}
 	self.postMessage({
 		type: 'trade',
 		data: {
@@ -438,6 +451,15 @@ function connect() {
 		reconnectDelay = reconnectBaseMs;
 		sendSubscribe();
 		postState();
+		self.postMessage({
+			type: 'log',
+			data: {
+				source: 'system',
+				time: Date.now(),
+				message: 'WebSocket connected',
+				direction: 'info'
+			}
+		});
 	};
 
 	ws.onmessage = (event) => {
@@ -480,6 +502,15 @@ function connect() {
 		ws = null;
 		connected = false;
 		postState();
+		self.postMessage({
+			type: 'log',
+			data: {
+				source: 'system',
+				time: Date.now(),
+				message: 'WebSocket disconnected',
+				direction: 'warning'
+			}
+		});
 
 		// Flush any pending bucket.
 		if (currentBucket && currentBucket.volume > 0 && emitting) {

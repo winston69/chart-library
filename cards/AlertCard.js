@@ -40,7 +40,6 @@ export class AlertCard {
 		this.visible = options.visible !== false;
 		this.maxAlerts = options.maxAlerts || MAX_ALERTS;
 		this._alerts = [];
-		this._alertCount = 0;
 		this._elements = {
 			root: null,
 			list: null,
@@ -57,10 +56,8 @@ export class AlertCard {
 
 	addAlert(alert) {
 		if (!alert) return;
-		this._alertCount++;
 		this._alerts.unshift(alert);
 		if (this._alerts.length > this.maxAlerts) this._alerts.length = this.maxAlerts;
-		this._updateTitle();
 
 		const list = this._elements.list;
 		if (!list) return;
@@ -94,8 +91,8 @@ export class AlertCard {
 
 		const title = document.createElement('div');
 		title.className = CSS.cardTitle;
+		title.textContent = 'Alerts / Logs';
 		this._elements.title = title;
-		this._updateTitle();
 		root.appendChild(title);
 
 		const body = document.createElement('div');
@@ -108,12 +105,6 @@ export class AlertCard {
 		this._elements = { root, list, title };
 		for (let i = this._alerts.length - 1; i >= 0; i--) {
 			list.insertBefore(this._createAlert(this._alerts[i]), list.firstChild);
-		}
-	}
-
-	_updateTitle() {
-		if (this._elements.title) {
-			this._elements.title.textContent = `Alerts (${this._alertCount})`;
 		}
 	}
 
@@ -134,10 +125,12 @@ export class AlertCard {
 		time.textContent = formatTimestamp(alert.time, timeFormatter);
 		item.appendChild(time);
 
+		const source = ['macd', 'bollinger', 'rsi', 'volume', 'trades', 'system']
+			.includes(alert.source) ? alert.source : null;
 		const icon = document.createElement('img');
 		icon.className = css.icon;
-		icon.setAttribute('src', `./icons/${alert.source}.svg`);
-		icon.setAttribute('alt', alert.source ? alert.source.toUpperCase() : 'Indicator');
+		icon.setAttribute('src', `./icons/${source || 'system'}.svg`);
+		icon.setAttribute('alt', source ? source.toUpperCase() : 'System');
 		item.appendChild(icon);
 
 		const message = document.createElement('span');

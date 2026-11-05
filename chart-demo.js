@@ -64,6 +64,7 @@ import { OHLCCard } from './cards/OHLCCard.js';
 import { InfoCard } from './cards/InfoCard.js';
 import { TradesCard } from './cards/TradesCard.js';
 import { AlertCard } from './cards/AlertCard.js';
+import { dispatchLiveLog } from './utils/LiveLog.js';
 
 // UI
 import { Button } from './ui/Button.js';
@@ -651,6 +652,9 @@ function handleLiveMessage(evt, source) {
 			break;
 		case 'tick':
 			applyTick(msg.data);
+			break;
+		case 'log':
+			dispatchLiveLog(msg, alertCard);
 			break;
 		case 'trade': {
 			const trade = msg.data;

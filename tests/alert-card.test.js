@@ -66,7 +66,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 
 	const card = new AlertCard({ maxAlerts: 2 });
 	card.render(new Element('div'));
-	assert.equal(card._elements.title.textContent, 'Alerts (0)');
+	assert.equal(card._elements.title.textContent, 'Alerts / Logs');
 	card.addAlert({
 		type: 'MACD_CROSS_BULLISH',
 		source: 'macd',
@@ -81,7 +81,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 	});
 
 	assert.equal(card._elements.root.children[0].className, 'card-title');
-	assert.equal(card._elements.root.children[0].textContent, 'Alerts (2)');
+	assert.equal(card._elements.root.children[0].textContent, 'Alerts / Logs');
 	assert.equal(card._elements.list.parentNode.className, 'card-body');
 	assert.equal(card._elements.list.children.length, 2);
 	assert.equal(card._elements.list.children[0].classList.contains('bearish'), true);
@@ -104,7 +104,7 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 		time: Date.UTC(2026, 0, 2, 3, 6, 5),
 		message: 'Crossed above Signal'
 	});
-	assert.equal(card._elements.title.textContent, 'Alerts (3)');
+	assert.equal(card._elements.title.textContent, 'Alerts / Logs');
 	assert.equal(card._elements.list.children.length, 2);
 	assert.equal(card._elements.list.children[1].classList.contains('bearish'), true);
 
@@ -130,8 +130,23 @@ test('AlertCard prepends alerts and styles bullish and bearish events', t => {
 	});
 	assert.equal(card._elements.list.children[0].children[1].attributes.get('src'), './icons/rsi.svg');
 	assert.equal(card._elements.list.children[0].children[2].textContent, 'Overbought (>70). Potential pullback.');
-	assert.equal(card._elements.title.textContent, 'Alerts (5)');
+	assert.equal(card._elements.title.textContent, 'Alerts / Logs');
 
 	card.clear();
 	assert.equal(card._elements.list.children.length, 0);
+	card.addAlert({
+		source: 'system',
+		time: Date.UTC(2026, 0, 2, 3, 9, 5),
+		message: 'WebSocket connected',
+		direction: 'info'
+	});
+	assert.equal(card._elements.list.children[0].children[1].attributes.get('src'), './icons/system.svg');
+	assert.equal(card._elements.list.children[0].children[1].attributes.get('alt'), 'SYSTEM');
+	card.addAlert({
+		source: 'trades',
+		time: Date.UTC(2026, 0, 2, 3, 10, 5),
+		message: 'Whale BUY detected: 77,716.9',
+		direction: 'bullish'
+	});
+	assert.equal(card._elements.list.children[0].children[1].attributes.get('src'), './icons/trades.svg');
 });

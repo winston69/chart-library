@@ -128,6 +128,7 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		indicators: ['macd']
 	} });
 	self.onmessage({ data: { type: 'start' } });
+	socket.onopen();
 
 	await tradesRequestStarted;
 	sendTrade = trade => socket.onmessage({
@@ -185,10 +186,27 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		[1000, 1001, 10, 8, 50, 1, 1001, 700 / 51, 51, 1, ['🐋'], ['➖']],
 		'the replay should retain seed averages and include whale trades in the time window'
 	);
+	const whaleLog = messages.find(message => message.type === 'log'
+		&& message.data.source === 'trades');
+	assert.deepEqual(
+		whaleLog.data,
+		{
+			source: 'trades',
+			time: whaleLog.data.time,
+			message: 'Whale BUY detected: 200',
+			direction: 'bullish'
+		}
+	);
+	assert.ok(Number.isFinite(whaleLog.data.time));
+	assert.equal(messages.find(message => message.type === 'log'
+		&& message.data.message === 'WebSocket connected').data.direction, 'info');
 
 	for (const websocketTrade of [...websocketTrades, websocketTrades.at(-1)]) {
 		sendTrade(websocketTrade);
 	}
+	socket.onclose({ code: 1000 });
+	assert.equal(messages.find(message => message.type === 'log'
+		&& message.data.message === 'WebSocket disconnected').data.direction, 'warning');
 
 	const allLiveMessages = messages.filter(message => message.type === 'trade');
 	assert.deepEqual(
@@ -468,18 +486,30 @@ test('raises the Z-score threshold for windows with fewer than 20 samples', asyn
 		};
 	});
 
-	socket.onmessage({
+	const sendTrade = (id, qty) => socket.onmessage({
 		data: JSON.stringify({
 			e: 'trade',
-			t: 5,
+			t: id,
 			p: '100',
-			q: '10',
-			T: Date.now(),
+			q: String(qty),
+			T: Date.now() + id,
 			m: false
 		})
 	});
+	sendTrade(5, 10);
+	sendTrade(6, 30);
 	const tradeMessage = messages.find(message => message.type === 'trade');
 	assert.deepEqual(tradeMessage.data.sig, ['➖'],
 		'a 10-unit trade is below the adaptive upper band for five varied samples');
 	assert.equal(tradeMessage.data.buyCount, 6);
+	assert.deepEqual(
+		messages.find(message => message.type === 'log' && message.data.source === 'trades').data,
+		{
+			source: 'trades',
+			time: messages.find(message => message.type === 'log'
+				&& message.data.source === 'trades').data.time,
+			message: 'High-volume BUY detected: 30',
+			direction: 'bullish'
+		}
+	);
 });
