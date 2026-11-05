@@ -161,7 +161,11 @@ function addTradeQuantity(quantities, quantity) {
 }
 
 function addTradeAverage(isBuyerMaker, quantity) {
-	addTradeQuantity(isBuyerMaker ? sellWindow : buyWindow, quantity);
+	if (isBuyerMaker === false) {
+		addTradeQuantity(buyWindow, quantity);
+	} else if (isBuyerMaker === true) {
+		addTradeQuantity(sellWindow, quantity);
+	}
 }
 
 function averageQuantity(quantities) {

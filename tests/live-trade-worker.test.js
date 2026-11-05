@@ -28,6 +28,18 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 			qty: 8,
 			time: lastRestTradeTime + 52,
 			isBuyerMaker: true
+		},
+		{
+			price: Number(restTrades.at(-1).price) + 53,
+			qty: 3,
+			time: lastRestTradeTime + 53,
+			isBuyerMaker: false
+		},
+		{
+			price: Number(restTrades.at(-1).price) + 54,
+			qty: 5,
+			time: lastRestTradeTime + 54,
+			isBuyerMaker: false
 		}
 	);
 
@@ -118,16 +130,22 @@ test('seeds rolling averages from REST trades without emitting them as live trad
 		[
 			messages.filter(message => message.type === 'trade').length,
 			messages.find(message => message.type === 'trade').data.aveBuy,
+			messages.find(message => message.type === 'trade').data.aveSell,
 			messages.filter(message => message.type === 'trade')[49].data.aveBuy,
 			messages.filter(message => message.type === 'trade')[50].data.aveBuy,
+			messages.filter(message => message.type === 'trade')[51].data.aveSell,
+			messages.filter(message => message.type === 'trade')[52].data.aveSell,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveBuy,
 			messages.filter(message => message.type === 'trade').at(-1).data.aveSell,
 			messages.find(message => message.type === 'trade').data.aveBuyValue,
-			messages.filter(message => message.type === 'trade').at(-1).data.aveSellValue,
+			messages.filter(message => message.type === 'trade')[51].data.aveSellValue,
 			messages.find(message => message.type === 'trade').data.totalCount,
 			messages.filter(message => message.type === 'trade').at(-1).data.totalCount
 		],
-		[52, 9.82, 25.5, 26.5, 26.5, 8, 9.82 * 110.99, 8 * 161.99, 1001, 1052],
-		'trade averages and notional values should seed from REST history and roll with unique WebSocket trades'
+		[
+			54, 9.82, 0, 25.5, 26.5, 8, 8, 26.56, 8,
+			9.82 * 110.99, 8 * 161.99, 1001, 1054
+		],
+		'BUY trades should not affect the SELL window while both side-specific windows roll independently'
 	);
 });
